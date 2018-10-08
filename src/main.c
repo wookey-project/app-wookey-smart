@@ -38,9 +38,12 @@ int _main(uint32_t task_id)
    struct sync_command ipc_sync_cmd;
 
     // smartcard vars
+    // FIXME
+#if 0
     unsigned char pin_ok = 0;
     unsigned int remaining_tries = 0;
     int tokenret = 0;
+#endif
 
 
     //
@@ -57,6 +60,8 @@ int _main(uint32_t task_id)
     cryp_early_init(false, CRYP_CFG, CRYP_PRODMODE, &dma_in_desc, &dma_out_desc);
     rng_early_init(RNG_THROUGH_CRYP);
 
+    // FIXME
+#if 0
     tokenret = token_early_init();
     switch (tokenret) {
         case 1:
@@ -71,6 +76,7 @@ int _main(uint32_t task_id)
         default:
             printf("Smartcard early init done\n");
     }
+#endif
 
     printf("set init as done\n");
     ret = sys_init(INIT_DONE);
@@ -80,6 +86,7 @@ int _main(uint32_t task_id)
      * Secure channel negocation
      *********************************************/
 
+#if 0
     /* Initialize the ISO7816-3 layer */
 	if(!tokenret && token_init()){
 		goto err;
@@ -89,7 +96,7 @@ int _main(uint32_t task_id)
 		printf("[XX] [Token] Secure channel negotiation error ...\n");
 		goto err;
 	}
-
+#endif
     /*******************************************
      * let's syncrhonize with other tasks
      *******************************************/
@@ -189,6 +196,7 @@ int _main(uint32_t task_id)
      * Send PIN to token
      *********************************************/
 
+#if 0
     // pin management should be separated in another function
     // token_pin_init(&pin, &len); // waiting for user PIN entry from pin app
     if (token_send_user_pin(pin, pin_len, &pin_ok, &remaining_tries)) {
@@ -196,6 +204,7 @@ int _main(uint32_t task_id)
         goto err;
     }
 
+#endif
     /*********************************************
      * Key injection in CRYP device
      *********************************************/
@@ -203,9 +212,11 @@ int _main(uint32_t task_id)
     unsigned char AES_CBC_ESSIV_key[32] = {0};
 	unsigned char AES_CBC_ESSIV_h_key[32] = {0};
 
+#if 0
 	if (token_get_key(pin, pin_len, AES_CBC_ESSIV_key, sizeof(AES_CBC_ESSIV_key), AES_CBC_ESSIV_h_key, sizeof(AES_CBC_ESSIV_h_key))){
 		goto err;
 	}
+#endif
 #ifdef SMART_DEBUG
     printf("key received:\n");
     hexdump(AES_CBC_ESSIV_key, 32);
