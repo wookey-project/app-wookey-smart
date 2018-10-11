@@ -209,8 +209,8 @@ int _main(uint32_t task_id)
      * Key injection in CRYP device
      *********************************************/
     /* Get key from token */
-    unsigned char AES_CBC_ESSIV_key[32] = {0};
-	unsigned char AES_CBC_ESSIV_h_key[32] = {0};
+    unsigned char AES_CBC_ESSIV_key[32] = { 0 }; //"\x60\x3d\xeb\x10\x15\xca\x71\xbe\x2b\x73\xae\xf0\x85\x7d\x77\x81\x1f\x35\x2c\x07\x3b\x61\x08\xd7\x2d\x98\x10\xa3\x09\x14\xdf\xf4";
+	unsigned char AES_CBC_ESSIV_h_key[32] = { 0 };
 
 #if 0
 	if (token_get_key(pin, pin_len, AES_CBC_ESSIV_key, sizeof(AES_CBC_ESSIV_key), AES_CBC_ESSIV_h_key, sizeof(AES_CBC_ESSIV_h_key))){
@@ -225,7 +225,7 @@ int _main(uint32_t task_id)
 #endif
 
     /* inject key in CRYP device, iv=0, encrypt by default */
-    cryp_init(AES_CBC_ESSIV_key, KEY_256, 0, AES_CBC, ENCRYPT);
+    cryp_init(AES_CBC_ESSIV_key, KEY_256, 0, AES_ECB, DECRYPT);
 
     printf("cryptography and smartcard initialization done!\n");
 
@@ -247,15 +247,31 @@ int _main(uint32_t task_id)
     printf("Acknowedge send, going back to sleep up keeping only smartcard watchdog.\n");
     while (1) {
         // detect Smartcard extraction using EXTI IRQ
-      sys_yield();
-      if (!SC_is_smartcard_inserted()) {
+//        sys_yield();
+        id = id_crypto;
+        size = sizeof (struct sync_command);
+
+        sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
+
+        //cryp_init_injector(AES_CBC_ESSIV_key, KEY_256);
+        cryp_init(AES_CBC_ESSIV_key, KEY_256, 0, AES_ECB, (enum crypto_dir)ipc_sync_cmd.data[0]);
+
+        ipc_sync_cmd.magic = MAGIC_CRYPTO_INJECT_RESP;
+        ipc_sync_cmd.state = SYNC_DONE;
+        ipc_sync_cmd.data_size = (uint8_t)0;
+
+        sys_ipc(IPC_SEND_SYNC, id_crypto, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+#if 0
+        if (!SC_is_smartcard_inserted()) {
           sys_reset();
       }
+#endif
     }
 
 err:
     printf("Oops\n");
     while (1) {
+
         sys_yield();
         // reset at first interrupt
         sys_reset();
