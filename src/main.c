@@ -257,21 +257,25 @@ int _main(uint32_t task_id)
         id = id_crypto;
         size = sizeof (struct sync_command);
 
-        sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
-
-        //cryp_init_injector(AES_CBC_ESSIV_key, KEY_256);
-        cryp_init(AES_CBC_ESSIV_key, KEY_256, 0, AES_ECB, (enum crypto_dir)ipc_sync_cmd.data[0]);
-
-        ipc_sync_cmd.magic = MAGIC_CRYPTO_INJECT_RESP;
-        ipc_sync_cmd.state = SYNC_DONE;
-        ipc_sync_cmd.data_size = (uint8_t)0;
-
-        sys_ipc(IPC_SEND_SYNC, id_crypto, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
-#if 0
+        // is there a smartcard ejection detection ?
         if (!SC_is_smartcard_inserted()) {
           sys_reset();
-      }
-#endif
+        }
+        // is there a key schedule request ?
+        ret = sys_ipc(IPC_RECV_ASYNC, &id, &size, (char*)&ipc_sync_cmd);
+
+        if (ret == SYS_E_DONE) {
+            //cryp_init_injector(AES_CBC_ESSIV_key, KEY_256);
+            cryp_init(AES_CBC_ESSIV_key, KEY_256, 0, AES_ECB, (enum crypto_dir)ipc_sync_cmd.data[0]);
+
+            ipc_sync_cmd.magic = MAGIC_CRYPTO_INJECT_RESP;
+            ipc_sync_cmd.state = SYNC_DONE;
+            ipc_sync_cmd.data_size = (uint8_t)0;
+
+            sys_ipc(IPC_SEND_SYNC, id_crypto, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+        }
+        // nothing ? just wait for next event
+        sys_yield();
     }
 
 err:
