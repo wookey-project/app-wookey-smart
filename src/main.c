@@ -39,11 +39,9 @@ int _main(uint32_t task_id)
 
     // smartcard vars
     // FIXME
-#if 0
     unsigned char pin_ok = 0;
     unsigned int remaining_tries = 0;
     int tokenret = 0;
-#endif
 
 
     //
@@ -61,7 +59,6 @@ int _main(uint32_t task_id)
     rng_early_init(RNG_THROUGH_CRYP);
 
     // FIXME
-#if 0
     tokenret = token_early_init();
     switch (tokenret) {
         case 1:
@@ -76,7 +73,6 @@ int _main(uint32_t task_id)
         default:
             printf("Smartcard early init done\n");
     }
-#endif
 
     printf("set init as done\n");
     ret = sys_init(INIT_DONE);
@@ -86,7 +82,6 @@ int _main(uint32_t task_id)
      * Secure channel negocation
      *********************************************/
 
-#if 0
     /* Initialize the ISO7816-3 layer */
 	if(!tokenret && token_init()){
 		goto err;
@@ -96,7 +91,6 @@ int _main(uint32_t task_id)
 		printf("[XX] [Token] Secure channel negotiation error ...\n");
 		goto err;
 	}
-#endif
     /*******************************************
      * let's syncrhonize with other tasks
      *******************************************/
@@ -196,13 +190,25 @@ int _main(uint32_t task_id)
      * Send PIN to token
      *********************************************/
 
-#if 0
+#if 1
     // pin management should be separated in another function
     // token_pin_init(&pin, &len); // waiting for user PIN entry from pin app
     if (token_send_user_pin(pin, pin_len, &pin_ok, &remaining_tries)) {
 		printf("[XX] [Token] Unable to send pin to token ...\n");
+        // Error while mounting T=1 secure channel, sending NACK to pin
+        //
+        ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
+        ipc_sync_cmd.state = SYNC_FAILURE;
+        ipc_sync_cmd.data_size = 0;
+        sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
         goto err;
     }
+    // pin received and T=1 channel correctly mounted. sending ACK to pin
+    //
+    ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
+    ipc_sync_cmd.state = SYNC_DONE;
+    ipc_sync_cmd.data_size = 0;
+    sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
 
 #endif
     /*********************************************
@@ -212,7 +218,7 @@ int _main(uint32_t task_id)
     unsigned char AES_CBC_ESSIV_key[32] = { 0 }; //"\x60\x3d\xeb\x10\x15\xca\x71\xbe\x2b\x73\xae\xf0\x85\x7d\x77\x81\x1f\x35\x2c\x07\x3b\x61\x08\xd7\x2d\x98\x10\xa3\x09\x14\xdf\xf4";
 	unsigned char AES_CBC_ESSIV_h_key[32] = { 0 };
 
-#if 0
+#if 1
 	if (token_get_key(pin, pin_len, AES_CBC_ESSIV_key, sizeof(AES_CBC_ESSIV_key), AES_CBC_ESSIV_h_key, sizeof(AES_CBC_ESSIV_h_key))){
 		goto err;
 	}
