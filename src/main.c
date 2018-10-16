@@ -203,13 +203,6 @@ int _main(uint32_t task_id)
         sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
         goto err;
     }
-    // pin received and T=1 channel correctly mounted. sending ACK to pin
-    //
-    ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
-    ipc_sync_cmd.state = SYNC_DONE;
-    ipc_sync_cmd.data_size = 0;
-    sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
-
 #endif
     /*********************************************
      * Key injection in CRYP device
@@ -220,8 +213,20 @@ int _main(uint32_t task_id)
 
 #if 1
 	if (token_get_key(pin, pin_len, AES_CBC_ESSIV_key, sizeof(AES_CBC_ESSIV_key), AES_CBC_ESSIV_h_key, sizeof(AES_CBC_ESSIV_h_key))){
+        ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
+        ipc_sync_cmd.state = SYNC_FAILURE;
+        ipc_sync_cmd.data_size = 0;
+        sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
 		goto err;
 	}
+    // pin received and T=1 channel correctly mounted. sending ACK to pin
+    //
+    ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
+    ipc_sync_cmd.state = SYNC_DONE;
+    ipc_sync_cmd.data_size = 0;
+    sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+
+
 #endif
 #ifdef SMART_DEBUG
     printf("key received:\n");
