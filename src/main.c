@@ -286,6 +286,7 @@ err:
 
         sys_yield();
         // reset at first interrupt
+        sys_sleep(2000, SLEEP_MODE_INTERRUPTIBLE);
         sys_reset();
     }
 
