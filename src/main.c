@@ -35,7 +35,8 @@ int _main(uint32_t task_id)
     logsize_t size = 32;
     int     dma_in_desc, dma_out_desc;
 
-   struct sync_command ipc_sync_cmd;
+    struct sync_command      ipc_sync_cmd;
+    struct sync_command_data ipc_sync_cmd_data;
 
     // smartcard vars
     // FIXME
@@ -94,7 +95,7 @@ int _main(uint32_t task_id)
     /*******************************************
      * let's syncrhonize with other tasks
      *******************************************/
-    size = 2;
+    size = sizeof(struct sync_command);
 
     /* First, wait for pin to finish its init phase */
     id = id_pin;
@@ -111,12 +112,12 @@ int _main(uint32_t task_id)
     ipc_sync_cmd.state = SYNC_ACKNOWLEDGE;
 
     do {
-      size = 2;
+      size = sizeof(struct sync_command);
       ret = sys_ipc(IPC_SEND_SYNC, id_pin, size, (char*)&ipc_sync_cmd);
     } while (ret != SYS_E_DONE);
 
     /* Then Syncrhonize with crypto */
-    size = 2;
+    size = sizeof(struct sync_command);
 
     printf("sending end_of_init syncrhonization to crypto\n");
     ipc_sync_cmd.magic = MAGIC_TASK_STATE_CMD;
@@ -144,7 +145,7 @@ int _main(uint32_t task_id)
 
     /* First, wait for pin to finish its init phase */
     id = id_crypto;
-    size = 2;
+    size = sizeof(struct sync_command);
     do {
         ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
     } while (ret != SYS_E_DONE);
@@ -166,21 +167,21 @@ int _main(uint32_t task_id)
     ipc_sync_cmd.state = SYNC_ASK_FOR_DATA;
 
     do {
-      ret = sys_ipc(IPC_SEND_SYNC, id_pin, 2, (char*)&ipc_sync_cmd);
+      ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
     } while (ret != SYS_E_DONE);
 
     /* Now wait for Acknowledge from Crypto */
     id = id_pin;
-    size = 35; /* max pin size: 32 */
+    size = sizeof(struct sync_command_data); /* max pin size: 32 */
 
     do {
-        ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
+        ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd_data);
     } while (ret != SYS_E_DONE);
-    if (   ipc_sync_cmd.magic == MAGIC_CRYPTO_PIN_RESP
-        && ipc_sync_cmd.state == SYNC_DONE) {
+    if (   ipc_sync_cmd_data.magic == MAGIC_CRYPTO_PIN_RESP
+        && ipc_sync_cmd_data.state == SYNC_DONE) {
         printf("received pin from PIN\n");
-        memcpy(pin, (void*)&(ipc_sync_cmd.data), ipc_sync_cmd.data_size);
-        pin_len = ipc_sync_cmd.data_size;
+        memcpy(pin, (void*)&(ipc_sync_cmd_data.data.u8), ipc_sync_cmd_data.data_size);
+        pin_len = ipc_sync_cmd_data.data_size;
         hexdump((uint8_t*)pin, pin_len);
     } else {
         goto err;
@@ -199,7 +200,6 @@ int _main(uint32_t task_id)
         //
         ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
         ipc_sync_cmd.state = SYNC_FAILURE;
-        ipc_sync_cmd.data_size = 0;
         sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
         goto err;
     }
@@ -215,7 +215,6 @@ int _main(uint32_t task_id)
 	if (token_get_key(pin, pin_len, AES_CBC_ESSIV_key, sizeof(AES_CBC_ESSIV_key), AES_CBC_ESSIV_h_key, sizeof(AES_CBC_ESSIV_h_key))){
         ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
         ipc_sync_cmd.state = SYNC_FAILURE;
-        ipc_sync_cmd.data_size = 0;
         sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
 		goto err;
 	}
@@ -223,7 +222,6 @@ int _main(uint32_t task_id)
     //
     ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
     ipc_sync_cmd.state = SYNC_DONE;
-    ipc_sync_cmd.data_size = 0;
     sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
 
 
@@ -244,14 +242,14 @@ int _main(uint32_t task_id)
      * Acknowledge key injection to Crypto
      * and send key hash
      ***********************************************/
-    ipc_sync_cmd.magic = MAGIC_CRYPTO_INJECT_RESP;
-    ipc_sync_cmd.state = SYNC_DONE;
-    ipc_sync_cmd.data_size = (uint8_t)32;
-    memcpy(&ipc_sync_cmd.data, AES_CBC_ESSIV_h_key, 32);
+    ipc_sync_cmd_data.magic = MAGIC_CRYPTO_INJECT_RESP;
+    ipc_sync_cmd_data.state = SYNC_DONE;
+    ipc_sync_cmd_data.data_size = (uint8_t)32;
+    memcpy(&ipc_sync_cmd_data.data.u8, AES_CBC_ESSIV_h_key, 32);
 
     do {
-      size = 3 + 32;
-      ret = sys_ipc(IPC_SEND_SYNC, id_crypto, size, (char*)&ipc_sync_cmd);
+      size = sizeof(struct sync_command_data);
+      ret = sys_ipc(IPC_SEND_SYNC, id_crypto, size, (char*)&ipc_sync_cmd_data);
     } while (ret != SYS_E_DONE);
 
     // infinite loop at end of init
@@ -260,22 +258,21 @@ int _main(uint32_t task_id)
         // detect Smartcard extraction using EXTI IRQ
 //        sys_yield();
         id = id_crypto;
-        size = sizeof (struct sync_command);
+        size = sizeof (struct sync_command_data);
 
         // is there a smartcard ejection detection ?
         if (!SC_is_smartcard_inserted()) {
           sys_reset();
         }
         // is there a key schedule request ?
-        ret = sys_ipc(IPC_RECV_ASYNC, &id, &size, (char*)&ipc_sync_cmd);
+        ret = sys_ipc(IPC_RECV_ASYNC, &id, &size, (char*)&ipc_sync_cmd_data);
 
         if (ret == SYS_E_DONE) {
             //cryp_init_injector(AES_CBC_ESSIV_key, KEY_256);
-            cryp_init(AES_CBC_ESSIV_key, KEY_256, 0, AES_ECB, (enum crypto_dir)ipc_sync_cmd.data[0]);
+            cryp_init(AES_CBC_ESSIV_key, KEY_256, 0, AES_ECB, (enum crypto_dir)ipc_sync_cmd_data.data.u8[0]);
 
             ipc_sync_cmd.magic = MAGIC_CRYPTO_INJECT_RESP;
             ipc_sync_cmd.state = SYNC_DONE;
-            ipc_sync_cmd.data_size = (uint8_t)0;
 
             sys_ipc(IPC_SEND_SYNC, id_crypto, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
         }

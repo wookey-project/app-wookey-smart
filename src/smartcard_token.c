@@ -38,8 +38,6 @@ token_channel curr_token_channel = { .channel_initialized = 0, .secure_channel =
 /* Include the token ECDSA public key */
 #include "token_public_key.h"
 
-#define SMARTCARD_DEBUG
-#define MEASURE_TOKEN_PERF
 
 /******* Crypto helpers ****************/
 
