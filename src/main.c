@@ -8,7 +8,6 @@
 #include "api/syscall.h"
 #include "api/print.h"
 #include "libcryp.h"
-#include "librng.h"
 #include "smartcard_token.h"
 #include "aes.h"
 #include "ipc_proto.h"
@@ -57,7 +56,6 @@ int _main(uint32_t task_id)
 
 
     cryp_early_init(false, CRYP_CFG, CRYP_PRODMODE, &dma_in_desc, &dma_out_desc);
-    rng_early_init(RNG_THROUGH_CRYP);
 
     // FIXME
     tokenret = token_early_init();
