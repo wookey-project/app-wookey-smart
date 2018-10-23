@@ -161,6 +161,13 @@ config APP_SMART_PERM_TSK_UPGRADE
     order to upgrade the overall firmware. This permission should
     be hosted by a task with no external access (USB, USART...)
 
+config APP_SMART_PERM_TSK_RNG
+    bool "App is allowed to access an an entropy input source, through sys_get_random"
+    default n
+    ---help---
+    If y, the application is able to request random content from the
+    kernel to generate entropy. This can be use for various needs.
+
 
 endmenu
 
