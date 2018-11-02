@@ -232,7 +232,7 @@ int _main(uint32_t task_id)
 #endif
 
     /* inject key in CRYP device, iv=0, encrypt by default */
-    cryp_init(AES_CBC_ESSIV_key, KEY_256, 0, AES_ECB, ENCRYPT);
+    cryp_init_injector(AES_CBC_ESSIV_key, KEY_256);
 
     printf("cryptography and smartcard initialization done!\n");
 
@@ -266,8 +266,7 @@ int _main(uint32_t task_id)
         ret = sys_ipc(IPC_RECV_ASYNC, &id, &size, (char*)&ipc_sync_cmd_data);
 
         if (ret == SYS_E_DONE) {
-            //cryp_init_injector(AES_CBC_ESSIV_key, KEY_256);
-            cryp_init(AES_CBC_ESSIV_key, KEY_256, 0, AES_ECB, (enum crypto_dir)ipc_sync_cmd_data.data.u8[0]);
+            cryp_init_injector(AES_CBC_ESSIV_key, KEY_256);
 
             ipc_sync_cmd.magic = MAGIC_CRYPTO_INJECT_RESP;
             ipc_sync_cmd.state = SYNC_DONE;
