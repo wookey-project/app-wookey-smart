@@ -27,8 +27,9 @@ CFLAGS += -Isrc/ -Iinc/ -I$(PRIVATE_DIR)
 CFLAGS += $(APPS_CFLAGS)
 CFLAGS += -I$(PROJ_FILES)/externals/libecc/src
 CFLAGS += $(EXTERNAL_CFLAGS)
-CFLAGS += -MMD -MP -DWITH_LIBECC_CONFIG_OVERRIDE -DWITH_CURVE_FRP256V1 -DWITH_HASH_SHA256 -DWITH_SIG_ECDSA
 
+# Add the libecc specific CFLAGS
+CFLAGS += $(LIBSIGN_CFLAGS)
 
 LDFLAGS += $(AFLAGS) -fno-builtin -nostdlib -nostartfiles -Wl,-Map=$(APP_BUILD_DIR)/$(APP_NAME).map
 
