@@ -152,78 +152,95 @@ int _main(uint32_t task_id)
         printf("crypto is requesting key injection...\n");
     }
 
+    /********************************************************
+     * Managing pin interaction between PIN App and tocken
+     *******************************************************/
+    unsigned char AES_CBC_ESSIV_key[32] = { 0 };
+    unsigned char AES_CBC_ESSIV_h_key[32] = { 0 };
 
 
-    /*********************************************
-     * Request PIN to pin task
-     *********************************************/
-    char pin[32] = {0};
-    uint8_t pin_len = 0;
 
-    printf("sending end_of_init syncrhonization to crypto\n");
-    ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_CMD;
-    ipc_sync_cmd.state = SYNC_ASK_FOR_DATA;
-
-    do {
-      ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
-    } while (ret != SYS_E_DONE);
-
-    /* Now wait for Acknowledge from Crypto */
-    id = id_pin;
-    size = sizeof(struct sync_command_data); /* max pin size: 32 */
+    uint8_t numtry = 0;
+    uint8_t maxtries = CONFIG_APP_PIN_MAX_PINTRIES;
+    bool valid_pin = false;
 
     do {
-        ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd_data);
-    } while (ret != SYS_E_DONE);
-    if (   ipc_sync_cmd_data.magic == MAGIC_CRYPTO_PIN_RESP
-        && ipc_sync_cmd_data.state == SYNC_DONE) {
-        printf("received pin from PIN\n");
-        memcpy(pin, (void*)&(ipc_sync_cmd_data.data.u8), ipc_sync_cmd_data.data_size);
-        pin_len = ipc_sync_cmd_data.data_size;
-        hexdump((uint8_t*)pin, pin_len);
-    } else {
-        goto err;
+
+        /*********************************************
+         * Request PIN to pin task
+         *********************************************/
+        char pin[CONFIG_APP_PIN_MAX_PIN_LEN + 1] = {0};
+        uint8_t pin_len = 0;
+
+        printf("Ask pin to PIN task\n");
+        ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_CMD;
+        ipc_sync_cmd.state = SYNC_ASK_FOR_DATA;
+
+        do {
+            ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+        } while (ret != SYS_E_DONE);
+
+        /* Now wait for Acknowledge from Crypto */
+        id = id_pin;
+        size = sizeof(struct sync_command_data); /* max pin size: 32 */
+
+        do {
+            ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd_data);
+        } while (ret != SYS_E_DONE);
+        if (   ipc_sync_cmd_data.magic == MAGIC_CRYPTO_PIN_RESP
+                && ipc_sync_cmd_data.state == SYNC_DONE) {
+            printf("received pin from PIN\n");
+            memcpy(pin, (void*)&(ipc_sync_cmd_data.data.u8), ipc_sync_cmd_data.data_size);
+            pin_len = ipc_sync_cmd_data.data_size;
+        } else {
+            goto err;
+        }
+
+        /*********************************************
+         * Send PIN to token
+         *********************************************/
+
+        // pin management should be separated in another function
+        // token_pin_init(&pin, &len); // waiting for user PIN entry from pin app
+        if (token_send_user_pin(pin, pin_len, &pin_ok, &remaining_tries)) {
+            printf("[XX] [Token] Unable to send pin to token ...\n");
+            // Error while mounting T=1 secure channel, sending NACK to pin
+            //
+            ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
+            ipc_sync_cmd.state = SYNC_FAILURE;
+            sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+            valid_pin = false;
+            numtry++;
+            continue;
+        }
+
+        /*********************************************
+         * Key injection in CRYP device
+         *********************************************/
+        /* Get key from token */
+        if (token_get_key(pin, pin_len, AES_CBC_ESSIV_key, sizeof(AES_CBC_ESSIV_key), AES_CBC_ESSIV_h_key, sizeof(AES_CBC_ESSIV_h_key))){
+            ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
+            ipc_sync_cmd.state = SYNC_FAILURE;
+            sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+            valid_pin = false;
+            numtry++;
+        } else {
+            // pin received and T=1 channel correctly mounted. sending ACK to pin
+            //
+            ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
+            ipc_sync_cmd.state = SYNC_DONE;
+            sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+
+            valid_pin = true;
+            numtry++;
+        }
+
+    } while (!valid_pin && numtry < maxtries);
+
+    if (!valid_pin) {
+        goto err; /* reset on multiple PIN entry failure */
     }
 
-    /*********************************************
-     * Send PIN to token
-     *********************************************/
-
-#if 1
-    // pin management should be separated in another function
-    // token_pin_init(&pin, &len); // waiting for user PIN entry from pin app
-    if (token_send_user_pin(pin, pin_len, &pin_ok, &remaining_tries)) {
-		printf("[XX] [Token] Unable to send pin to token ...\n");
-        // Error while mounting T=1 secure channel, sending NACK to pin
-        //
-        ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
-        ipc_sync_cmd.state = SYNC_FAILURE;
-        sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
-        goto err;
-    }
-#endif
-    /*********************************************
-     * Key injection in CRYP device
-     *********************************************/
-    /* Get key from token */
-    unsigned char AES_CBC_ESSIV_key[32] = { 0 }; //"\x60\x3d\xeb\x10\x15\xca\x71\xbe\x2b\x73\xae\xf0\x85\x7d\x77\x81\x1f\x35\x2c\x07\x3b\x61\x08\xd7\x2d\x98\x10\xa3\x09\x14\xdf\xf4";
-	unsigned char AES_CBC_ESSIV_h_key[32] = { 0 };
-
-#if 1
-	if (token_get_key(pin, pin_len, AES_CBC_ESSIV_key, sizeof(AES_CBC_ESSIV_key), AES_CBC_ESSIV_h_key, sizeof(AES_CBC_ESSIV_h_key))){
-        ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
-        ipc_sync_cmd.state = SYNC_FAILURE;
-        sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
-		goto err;
-	}
-    // pin received and T=1 channel correctly mounted. sending ACK to pin
-    //
-    ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
-    ipc_sync_cmd.state = SYNC_DONE;
-    sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
-
-
-#endif
 #ifdef SMART_DEBUG
     printf("key received:\n");
     hexdump(AES_CBC_ESSIV_key, 32);
