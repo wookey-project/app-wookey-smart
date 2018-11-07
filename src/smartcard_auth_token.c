@@ -177,6 +177,10 @@ int auth_token_exchanges(token_channel *channel, cb_auth_token_ask_pet_pin_t ask
         }
 
     struct sync_command      ipc_sync_cmd = { 0 };
+    struct sync_command_data ipc_sync_cmd_data = { 0 };
+    logsize_t size = 0;
+    uint8_t id = 0;
+
 
 	/* Ask the user for the PET PIN */
 	pet_pin_len = sizeof(pet_pin);
@@ -247,9 +251,40 @@ int auth_token_exchanges(token_channel *channel, cb_auth_token_ask_pet_pin_t ask
 	}
 	log_printf("'\n");
 
-	/*************** Get User PIN */
 
 
+    /************* Send pet name to pin */
+
+    /* receive pet name requet from pin */
+    size = sizeof(struct sync_command);
+    id = id_pin;
+    sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
+
+    if (ipc_sync_cmd.magic == MAGIC_CRYPTO_PETPIN_CMD &&
+        ipc_sync_cmd.state == SYNC_ASK_FOR_DATA) {
+
+        ipc_sync_cmd_data.magic = MAGIC_CRYPTO_PETPIN_RESP;
+        ipc_sync_cmd_data.state = SYNC_DONE;
+        ipc_sync_cmd_data.data_size = pet_name_len;
+        memset(&ipc_sync_cmd_data.data.u8, 0x0, 32);
+        memcpy(&ipc_sync_cmd_data.data.u8, pet_name, pet_name_len);
+
+        sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd_data);
+
+        /* now we wait for PIN to inform us if the pet name is okay for the user */
+
+        id = id_pin;
+        size = sizeof(struct sync_command);
+        sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
+        if (ipc_sync_cmd.magic != MAGIC_CRYPTO_PETPIN_RESP ||
+            ipc_sync_cmd.state != SYNC_ACKNOWLEDGE) {
+            printf("Pin hasn't acknowledge the Pet name !\n");
+            goto err;
+        }
+    }
+
+    log_printf("[AUTH Token] Pen name acknowledge by the user\n");
+    /*************** Get User PIN */
 
 
 	/* Ask for the USER pin while provdiding him the PET name */

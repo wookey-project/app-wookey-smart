@@ -345,8 +345,7 @@ int _main(uint32_t task_id)
 err:
     printf("Oops\n");
     while (1) {
-        sys_yield();
-        // reset at first interrupt
+        // wait 2secs and reset
         sys_sleep(2000, SLEEP_MODE_INTERRUPTIBLE);
         sys_reset();
     }
