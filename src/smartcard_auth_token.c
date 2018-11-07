@@ -1,4 +1,5 @@
 #include "smartcard_auth_token.h"
+#include "ipc_proto.h"
 
 /* Include our encrypted platform keys  */
 #include "AUTH/encrypted_platform_auth_keys.h"
@@ -16,6 +17,9 @@
 #else
 #define log_printf(...)
 #endif
+
+/*FIXME: not clean*/
+extern uint8_t id_pin;
 
 static const unsigned char auth_applet_AID[] = { 0x45, 0x75, 0x74, 0x77, 0x74, 0x75, 0x36, 0x41, 0x70, 0x70 };
 
@@ -172,16 +176,31 @@ int auth_token_exchanges(token_channel *channel, cb_auth_token_ask_pet_pin_t ask
                 goto err;
         }
 
+    struct sync_command      ipc_sync_cmd = { 0 };
+
 	/* Ask the user for the PET PIN */
 	pet_pin_len = sizeof(pet_pin);
 	if(ask_pet_pin(pet_pin, &pet_pin_len)){
+        printf("[Pet Pin] Failed to ask for pet pin!\n");
 		goto err;
 	}
 
 	/* Decrypt the platform keys */
 	if(decrypt_platform_keys(channel, pet_pin, pet_pin_len, keybag_auth, sizeof(keybag_auth)/sizeof(databag), decrypted_auth_keybag, sizeof(decrypted_auth_keybag)/sizeof(databag), PLATFORM_PBKDF2_ITERATIONS)){
+
+        ipc_sync_cmd.magic = MAGIC_CRYPTO_PETPIN_RESP;
+        ipc_sync_cmd.state = SYNC_FAILURE;
+        sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+
+        printf("[Platform] Failed to decrypt platform keys!\n");
 		goto err;
 	}
+
+    ipc_sync_cmd.magic = MAGIC_CRYPTO_PETPIN_RESP;
+    ipc_sync_cmd.state = SYNC_DONE;
+    sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+
+
 
 #ifdef MEASURE_TOKEN_PERF
         sys_get_systick(&end_decrypt_keys, PREC_MILLI);
@@ -229,6 +248,10 @@ int auth_token_exchanges(token_channel *channel, cb_auth_token_ask_pet_pin_t ask
 	log_printf("'\n");
 
 	/*************** Get User PIN */
+
+
+
+
 	/* Ask for the USER pin while provdiding him the PET name */
 	user_pin_len = sizeof(user_pin);
 	if(ask_user_pin(pet_name, pet_name_len, user_pin, &user_pin_len)){
@@ -240,8 +263,17 @@ int auth_token_exchanges(token_channel *channel, cb_auth_token_ask_pet_pin_t ask
 	}
 	if(!pin_ok){
 		log_printf("[AUTH Token] USER PIN is NOT OK, remaining tries = %d\n", remaining_tries);
+
+        ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
+        ipc_sync_cmd.state = SYNC_FAILURE;
+        sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+
 		goto err;
 	}
+    ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
+    ipc_sync_cmd.state = SYNC_DONE;
+    sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+
 	
 	/*************** Get the CBC-ESSIV key and its hash */
 	if(auth_token_get_key(channel, user_pin, user_pin_len, AES_CBC_ESSIV_key, AES_CBC_ESSIV_key_len, AES_CBC_ESSIV_h_key, AES_CBC_ESSIV_h_key_len)){

@@ -48,18 +48,22 @@ int decrypt_platform_keys(token_channel *channel, const char *pet_pin, uint32_t 
         uint8_t token_key[SHA512_DIGEST_SIZE];
 	SC_APDU_cmd apdu;
 	SC_APDU_resp resp;
+    uint8_t error = 1;
 
 	/* Sanity checks */
         if((pet_pin == NULL) || (keybag == NULL) || (decrypted_keybag == NULL)){
+            printf("err %d\n", error++);
                 goto err;
         }
         /* Sanity checks on lengths 
          * A Keybag contains at least an IV, a salt and a HMAC tag
          */
         if(keybag_num < 3){
+            printf("err %d\n", error++);
                 goto err;
         }
         if(decrypted_keybag_num != (keybag_num - 3)){
+            printf("err %d\n", error++);
                 goto err;
         }
 
@@ -75,28 +79,33 @@ int decrypt_platform_keys(token_channel *channel, const char *pet_pin, uint32_t 
          */
         pbkdf_len = sizeof(pbkdf);
         if(hmac_pbkdf2(SHA512, (unsigned char*)pet_pin, pet_pin_len, platform_salt, platform_salt_len, pbkdf2_iterations, SHA512_DIGEST_SIZE, pbkdf, &pbkdf_len)){
+            printf("err %d\n", error++);
                 goto err;
         }
 
 	/* Once we have derived our PBKDF2 key, we ask the token for the decryption key */
 	/* Sanity check: th secure channel must not be already negotiated */
 	if((channel == NULL) || (channel->secure_channel == 1)){
+            printf("err %d\n", error++);
 		goto err;
 	}
 	apdu.cla = 0x00; apdu.ins = TOKEN_INS_DERIVE_LOCAL_PET_KEY; apdu.p1 = 0x00; apdu.p2 = 0x00; 
 	apdu.lc = SHA512_DIGEST_SIZE; apdu.le = SHA512_DIGEST_SIZE; apdu.send_le = 1;
 	memcpy(apdu.data, pbkdf, pbkdf_len);
 	if(token_send_receive(channel, &apdu, &resp)){
+            printf("err %d\n", error++);
 		goto err;
 	}
 	
 	/******* Smartcard response ***********************************/
 	if((resp.sw1 != (TOKEN_RESP_OK >> 8)) || (resp.sw2 != (TOKEN_RESP_OK & 0xff))){
 		/* The smartcard responded an error */
+            printf("err %d\n", error++);
 		goto err;
 	}
 	if(resp.le != SHA512_DIGEST_SIZE){
 		/* Bad response lenght */
+            printf("err %d\n", error++);
 		goto err;
 	}
 	memcpy(token_key, resp.data, SHA512_DIGEST_SIZE);
@@ -105,6 +114,7 @@ int decrypt_platform_keys(token_channel *channel, const char *pet_pin, uint32_t 
          * the PBKDF2 value.
          */
         if(hmac_init(&hmac_ctx, token_key+32, SHA256_DIGEST_SIZE, SHA256)){
+            printf("err %d\n", error++);
                 goto err;
         }
         hmac_update(&hmac_ctx, platform_iv, platform_iv_len);
@@ -113,13 +123,16 @@ int decrypt_platform_keys(token_channel *channel, const char *pet_pin, uint32_t 
                 hmac_update(&hmac_ctx, keybag[i+3].data, keybag[i+3].size);
         }
         if(hmac_finalize(&hmac_ctx, hmac, &hmac_len)){
+            printf("err %d\n", error++);
                 goto err;
         }
         /* Check the HMAC tag and return an error if there is an issue */
         if((hmac_len != SHA256_DIGEST_SIZE) || (platform_hmac_tag_len != SHA256_DIGEST_SIZE)){
+            printf("err %d\n", error++);
                 goto err;
         }
         if(!are_equal(hmac, platform_hmac_tag, hmac_len)){
+            printf("err %d\n", error++);
                 goto err;
         }
         /* HMAC is OK, we can decrypt our data */
@@ -131,11 +144,13 @@ int decrypt_platform_keys(token_channel *channel, const char *pet_pin, uint32_t 
         /* [RB] NOTE: if not on our ARM target, we use regular portable implementation for simulations */
         if(aes_init(&aes_context, token_key, AES128, platform_iv, CTR, AES_DECRYPT, AES_SOFT_MBEDTLS, NULL, NULL, -1, -1)){
 #endif
+            printf("err %d\n", error++);
                 goto err;
         }
         /* Decrypt all our data encapsulated in the keybag */
         for(i = 0; i < (keybag_num - 3); i++){
                 if(aes(&aes_context, keybag[i+3].data, decrypted_keybag[i].data, decrypted_keybag[i].size, -1, -1)){
+            printf("err %d\n", error++);
                         goto err;
                 }
         }

@@ -15,11 +15,47 @@
 
 #define SMART_DEBUG 1
 
+uint8_t id_pin = 0;
+static token_channel curr_token_channel = { 0 };
 
-int auth_token_ask_pet_pin(__attribute__((unused)) char *pet_pin, __attribute__((unused)) unsigned int *pet_pin_len){
+int auth_token_ask_pet_pin(char *pet_pin, unsigned int *pet_pin_len)
+{
+    struct sync_command      ipc_sync_cmd = { 0 };
+    struct sync_command_data ipc_sync_cmd_data = { 0 };
+    uint8_t ret;
+    uint8_t id;
+    logsize_t size = 0;
+
+    /*********************************************
+     * Request PIN to pin task
+     *********************************************/
+    printf("Ask pet pin to PIN task\n");
+    ipc_sync_cmd.magic = MAGIC_CRYPTO_PETPIN_CMD;
+    ipc_sync_cmd.state = SYNC_ASK_FOR_DATA;
+
+    do {
+        ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+    } while (ret != SYS_E_DONE);
+
+    /* Now wait for Acknowledge from Crypto */
+    id = id_pin;
+    size = sizeof(struct sync_command_data); /* max pin size: 32 */
+
+    do {
+        ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd_data);
+    } while (ret != SYS_E_DONE);
+    if (   ipc_sync_cmd_data.magic == MAGIC_CRYPTO_PETPIN_RESP
+            && ipc_sync_cmd_data.state == SYNC_DONE) {
+        printf("received pet pin from PIN\n");
+        memcpy(pet_pin, (void*)&(ipc_sync_cmd_data.data.u8), ipc_sync_cmd_data.data_size);
+        *pet_pin_len = ipc_sync_cmd_data.data_size;
+        return 0;
+    }
+    return 1;
+
+#if 0
 	memcpy(pet_pin, "1234", 4);
 	*pet_pin_len = 4;
-#if 0
     /*********************************************
      * Request PIN to pin task
      *********************************************/
@@ -58,10 +94,49 @@ err:
     return 0;
 }
 
-int auth_token_ask_user_pin(__attribute__((unused)) char *pet_name, __attribute__((unused)) unsigned int pet_name_len, __attribute__((unused)) char *user_pin, __attribute__((unused)) unsigned int *user_pin_len){
+int auth_token_ask_user_pin(__attribute__((unused)) char *pet_name,
+                            __attribute__((unused)) unsigned int pet_name_len,
+                            char *user_pin,
+                            unsigned int *user_pin_len)
+{
+
+    struct sync_command      ipc_sync_cmd = { 0 };
+    struct sync_command_data ipc_sync_cmd_data = { 0 };
+    uint8_t ret;
+    uint8_t id;
+    logsize_t size = 0;
+
+    /*********************************************
+     * Request PIN to pin task
+     *********************************************/
+    printf("Ask pin to PIN task\n");
+    ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_CMD;
+    ipc_sync_cmd.state = SYNC_ASK_FOR_DATA;
+
+    do {
+        ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+    } while (ret != SYS_E_DONE);
+
+    /* Now wait for Acknowledge from Crypto */
+    id = id_pin;
+    size = sizeof(struct sync_command_data); /* max pin size: 32 */
+
+    do {
+        ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd_data);
+    } while (ret != SYS_E_DONE);
+    if (   ipc_sync_cmd_data.magic == MAGIC_CRYPTO_PIN_RESP
+            && ipc_sync_cmd_data.state == SYNC_DONE) {
+        printf("received pin from PIN\n");
+        memcpy(user_pin, (void*)&(ipc_sync_cmd_data.data.u8), ipc_sync_cmd_data.data_size);
+        *user_pin_len = ipc_sync_cmd_data.data_size;
+        return 0;
+    }
+    return 1;
+#if 0
     memcpy(user_pin, "1234", 4);
     *user_pin_len = 4;
     return 0;
+#endif
 }
 
 
@@ -73,19 +148,18 @@ int auth_token_ask_user_pin(__attribute__((unused)) char *pet_name, __attribute_
  * without compiler complain. argc/argv is not a goot idea in term
  * of size and calculation in a microcontroler
  */
-int _main(uint32_t __attribute__((unused)) task_id)
+int _main(uint32_t task_id)
 {
     /* FIXME: try to make key global, __GLOBAL_OFFSET_TAB error */
     char *wellcome_msg = "hello, I'm smart";
 //    char buffer_out[2] = "@@";
     uint8_t id = 0;
     uint8_t id_crypto = 0;
-    uint8_t id_pin = 0;
     e_syscall_ret ret = 0;
     logsize_t size = 32;
     int     dma_in_desc, dma_out_desc;
 
-    struct sync_command ipc_sync_cmd;
+    struct sync_command      ipc_sync_cmd;
     struct sync_command_data ipc_sync_cmd_data;
 
     // smartcard vars
@@ -123,10 +197,25 @@ int _main(uint32_t __attribute__((unused)) task_id)
     ret = sys_init(INIT_DONE);
     printf("sys_init returns %s !\n", strerror(ret));
 
+#if 0
+    /*********************************************
+     * Secure channel negocation
+     *********************************************/
+
+    /* Initialize the ISO7816-3 layer */
+	if(!tokenret && token_init()){
+		goto err;
+	}
+
+	if(!tokenret && token_secure_channel_init()){
+		printf("[XX] [Token] Secure channel negotiation error ...\n");
+		goto err;
+	}
+#endif
     /*******************************************
      * let's synchronize with other tasks
      *******************************************/
-    size = 2;
+    size = sizeof(struct sync_command);
 
     /* First, wait for pin to finish its init phase */
     id = id_pin;
@@ -143,12 +232,12 @@ int _main(uint32_t __attribute__((unused)) task_id)
     ipc_sync_cmd.state = SYNC_ACKNOWLEDGE;
 
     do {
-      size = 2;
+      size = sizeof(struct sync_command);
       ret = sys_ipc(IPC_SEND_SYNC, id_pin, size, (char*)&ipc_sync_cmd);
     } while (ret != SYS_E_DONE);
 
     /* Then Syncrhonize with crypto */
-    size = 2;
+    size = sizeof(struct sync_command);
 
     printf("sending end_of_init syncrhonization to crypto\n");
     ipc_sync_cmd.magic = MAGIC_TASK_STATE_CMD;
@@ -176,7 +265,7 @@ int _main(uint32_t __attribute__((unused)) task_id)
 
     /* First, wait for pin to finish its init phase */
     id = id_crypto;
-    size = 2;
+    size = sizeof(struct sync_command);
     do {
         ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
     } while (ret != SYS_E_DONE);
@@ -185,15 +274,18 @@ int _main(uint32_t __attribute__((unused)) task_id)
         printf("crypto is requesting key injection...\n");
     }
 
-
     /*********************************************
      * AUTH token communication, to get key from it
      *********************************************/
+
     unsigned char AES_CBC_ESSIV_key[32] = {0};
     unsigned char AES_CBC_ESSIV_h_key[32] = {0};
-    token_channel curr_token_channel = { .channel_initialized = 0, .secure_channel = 0, .IV = { 0 }, .first_IV = { 0 }, .AES_key = { 0 }, .HMAC_key = { 0 } };
-    if(!tokenret && auth_token_exchanges(&curr_token_channel, auth_token_ask_pet_pin, auth_token_ask_user_pin, AES_CBC_ESSIV_key, sizeof(AES_CBC_ESSIV_key), AES_CBC_ESSIV_h_key, sizeof(AES_CBC_ESSIV_h_key))){
- 	goto err;
+
+    memset((void*)&curr_token_channel, 0, sizeof(token_channel));
+
+    if(!tokenret && auth_token_exchanges(&curr_token_channel, auth_token_ask_pet_pin, auth_token_ask_user_pin, AES_CBC_ESSIV_key, sizeof(AES_CBC_ESSIV_key), AES_CBC_ESSIV_h_key, sizeof(AES_CBC_ESSIV_h_key)))
+    {
+        goto err;
     }
 
 #ifdef SMART_DEBUG
@@ -205,7 +297,6 @@ int _main(uint32_t __attribute__((unused)) task_id)
 
     /* inject key in CRYP device, iv=0, encrypt by default */
     cryp_init_injector(AES_CBC_ESSIV_key, KEY_256);
-    //cryp_init(AES_CBC_ESSIV_key, KEY_256, 0, AES_CBC, ENCRYPT);
 
     printf("cryptography and smartcard initialization done!\n");
 
@@ -216,7 +307,7 @@ int _main(uint32_t __attribute__((unused)) task_id)
     ipc_sync_cmd_data.magic = MAGIC_CRYPTO_INJECT_RESP;
     ipc_sync_cmd_data.state = SYNC_DONE;
     ipc_sync_cmd_data.data_size = (uint8_t)32;
-    memcpy(&ipc_sync_cmd_data.data, AES_CBC_ESSIV_h_key, 32);
+    memcpy(&ipc_sync_cmd_data.data.u8, AES_CBC_ESSIV_h_key, 32);
 
     do {
       size = sizeof(struct sync_command_data);
@@ -233,7 +324,7 @@ int _main(uint32_t __attribute__((unused)) task_id)
 
         // is there a smartcard ejection detection ?
         if (!SC_is_smartcard_inserted(&(curr_token_channel.card))) {
-	  printf("Card ejection detected! Resetting the board through syscall!\n");
+	      printf("Card ejection detected! Resetting the board through syscall!\n");
           sys_reset();
         }
         // is there a key schedule request ?
@@ -256,7 +347,8 @@ err:
     while (1) {
         sys_yield();
         // reset at first interrupt
-        //sys_reset();
+        sys_sleep(2000, SLEEP_MODE_INTERRUPTIBLE);
+        sys_reset();
     }
     return 0;
 }
