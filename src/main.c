@@ -12,6 +12,7 @@
 #include "smartcard_dfu_token.h"
 #include "aes.h"
 #include "ipc_proto.h"
+#include "autoconf.h"
 
 #define SMART_DEBUG 1
 
@@ -189,23 +190,35 @@ int _main(uint32_t __attribute__((unused)) task_id)
     /*********************************************
      * AUTH token communication, to get key from it
      *********************************************/
-    unsigned char AES_CBC_ESSIV_key[32] = {0};
-    unsigned char AES_CBC_ESSIV_h_key[32] = {0};
-    token_channel curr_token_channel = { .channel_initialized = 0, .secure_channel = 0, .IV = { 0 }, .first_IV = { 0 }, .AES_key = { 0 }, .HMAC_key = { 0 } };
-    if(!tokenret && auth_token_exchanges(&curr_token_channel, auth_token_ask_pet_pin, auth_token_ask_user_pin, AES_CBC_ESSIV_key, sizeof(AES_CBC_ESSIV_key), AES_CBC_ESSIV_h_key, sizeof(AES_CBC_ESSIV_h_key))){
- 	goto err;
+    unsigned char CBC_ESSIV_key[32] = {0};
+    unsigned char CBC_ESSIV_h_key[32] = {0};
+
+    memset((void*)&curr_token_channel, 0, sizeof(token_channel));
+
+    if(!tokenret && auth_token_exchanges(&curr_token_channel, auth_token_ask_pet_pin, auth_token_ask_user_pin, CBC_ESSIV_key, sizeof(CBC_ESSIV_key), CBC_ESSIV_h_key, sizeof(CBC_ESSIV_h_key)))
+    {
+        goto err;
     }
 
 #ifdef SMART_DEBUG
     printf("key received:\n");
-    hexdump(AES_CBC_ESSIV_key, 32);
+    hexdump(CBC_ESSIV_key, 32);
     printf("hash received:\n");
-    hexdump(AES_CBC_ESSIV_h_key, 32);
+    hexdump(CBC_ESSIV_h_key, 32);
 #endif
 
     /* inject key in CRYP device, iv=0, encrypt by default */
-    cryp_init_injector(AES_CBC_ESSIV_key, KEY_256);
-    //cryp_init(AES_CBC_ESSIV_key, KEY_256, 0, AES_CBC, ENCRYPT);
+#ifdef CONFIG_AES256_CBC_ESSIV
+    cryp_init_injector(CBC_ESSIV_key, KEY_256);
+#else
+#ifdef CONFIG_TDES_CBC_ESSIV 
+    cryp_init_injector(CBC_ESSIV_key, KEY_192);
+    /* In order to avoid cold boot attacks, we can safely erase the master key! */
+    memset(CBC_ESSIV_key, 0, sizeof(CBC_ESSIV_key));
+#else
+#error "No FDE algorithm has been selected ..."
+#endif
+#endif
 
     printf("cryptography and smartcard initialization done!\n");
 
@@ -216,7 +229,7 @@ int _main(uint32_t __attribute__((unused)) task_id)
     ipc_sync_cmd_data.magic = MAGIC_CRYPTO_INJECT_RESP;
     ipc_sync_cmd_data.state = SYNC_DONE;
     ipc_sync_cmd_data.data_size = (uint8_t)32;
-    memcpy(&ipc_sync_cmd_data.data, AES_CBC_ESSIV_h_key, 32);
+    memcpy(&ipc_sync_cmd_data.data.u8, CBC_ESSIV_h_key, 32);
 
     do {
       size = sizeof(struct sync_command_data);
@@ -236,17 +249,20 @@ int _main(uint32_t __attribute__((unused)) task_id)
 	  printf("Card ejection detected! Resetting the board through syscall!\n");
           sys_reset();
         }
+#ifdef CONFIG_AES256_CBC_ESSIV
+        /* If we use AES-CBC-ESSIV, we might have to reinject the key! */
         // is there a key schedule request ?
         ret = sys_ipc(IPC_RECV_ASYNC, &id, &size, (char*)&ipc_sync_cmd_data);
 
         if (ret == SYS_E_DONE) {
-            cryp_init_injector(AES_CBC_ESSIV_key, KEY_256);
+            cryp_init_injector(CBC_ESSIV_key, KEY_256);
 
             ipc_sync_cmd.magic = MAGIC_CRYPTO_INJECT_RESP;
             ipc_sync_cmd.state = SYNC_DONE;
 
             sys_ipc(IPC_SEND_SYNC, id_crypto, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
         }
+#endif
         // nothing ? just wait for next event
         sys_yield();
     }
