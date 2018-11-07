@@ -193,8 +193,7 @@ int _main(uint32_t __attribute__((unused)) task_id)
     unsigned char CBC_ESSIV_key[32] = {0};
     unsigned char CBC_ESSIV_h_key[32] = {0};
 
-    memset((void*)&curr_token_channel, 0, sizeof(token_channel));
-
+    token_channel curr_token_channel = { .channel_initialized = 0, .secure_channel = 0, .IV = { 0 }, .first_IV = { 0 }, .AES_key = { 0 }, .HMAC_key = { 0 } };
     if(!tokenret && auth_token_exchanges(&curr_token_channel, auth_token_ask_pet_pin, auth_token_ask_user_pin, CBC_ESSIV_key, sizeof(CBC_ESSIV_key), CBC_ESSIV_h_key, sizeof(CBC_ESSIV_h_key)))
     {
         goto err;
