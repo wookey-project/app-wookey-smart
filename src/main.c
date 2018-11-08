@@ -17,7 +17,6 @@
 #define SMART_DEBUG 1
 
 uint8_t id_pin = 0;
-static token_channel curr_token_channel = { 0 };
 
 int auth_token_ask_pet_pin(char *pet_pin, unsigned int *pet_pin_len)
 {
