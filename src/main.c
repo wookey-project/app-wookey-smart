@@ -209,11 +209,13 @@ int _main(uint32_t __attribute__((unused)) task_id)
     /* inject key in CRYP device, iv=0, encrypt by default */
 #ifdef CONFIG_AES256_CBC_ESSIV
     cryp_init_injector(CBC_ESSIV_key, KEY_256);
+    printf("AES256_CBC_ESSIV used!\n");
 #else
 #ifdef CONFIG_TDES_CBC_ESSIV 
     cryp_init_injector(CBC_ESSIV_key, KEY_192);
     /* In order to avoid cold boot attacks, we can safely erase the master key! */
     memset(CBC_ESSIV_key, 0, sizeof(CBC_ESSIV_key));
+    printf("TDES_CBC_ESSIV used!\n");
 #else
 #error "No FDE algorithm has been selected ..."
 #endif
