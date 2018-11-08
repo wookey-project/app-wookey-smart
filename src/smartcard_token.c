@@ -623,6 +623,10 @@ static int SC_send_APDU_with_errors(SC_APDU_cmd *apdu, SC_APDU_resp *resp, SC_Ca
 		if(ret && (num_tries >= TOKEN_MAX_SEND_APDU_TRIES)){
 			goto err;
 		}
+		if(!SC_is_smartcard_inserted(card)){
+			/* Smartcard has been lost ... */
+			goto err;
+		}
 		/* Wait the requested timeout with the card to reset the current APDU */
 		SC_wait_card_timeout(card);
 	}
@@ -704,8 +708,8 @@ int token_send_receive(token_channel *channel, SC_APDU_cmd *apdu, SC_APDU_resp *
 err:
 #ifdef SMARTCARD_DEBUG
     printf("APDU send/receive error (secure channel or lower layers errors)\n");
-    SC_smartcard_lost(&(channel->card));
 #endif
+    SC_smartcard_lost(&(channel->card));
 
     return -1;
 }
