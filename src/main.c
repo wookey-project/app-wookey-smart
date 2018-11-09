@@ -469,6 +469,15 @@ int _main(uint32_t task_id)
                         break;
                     }
 
+                /********* lock the device (by rebooting) ***/
+                case MAGIC_SETTINGS_LOCK:
+                    {
+                        sys_reset();
+                        while (1);
+                        break;
+                    }
+
+
 
 
                     /********* defaulting to none    *************/
