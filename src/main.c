@@ -326,10 +326,16 @@ int _main(uint32_t task_id)
 
     // infinite loop at end of init
     printf("Acknowedge send, going back to sleep up keeping only smartcard watchdog.\n");
+
+
+    /*******************************************
+     * Smart main event loop
+     *******************************************/
+
     while (1) {
         // detect Smartcard extraction using EXTI IRQ
 //        sys_yield();
-        id = id_crypto;
+        id = ANY_APP;
         size = sizeof (struct sync_command_data);
 
         // is there a smartcard ejection detection ?
@@ -337,20 +343,143 @@ int _main(uint32_t task_id)
 	      printf("Card ejection detected! Resetting the board through syscall!\n");
           sys_reset();
         }
-#ifdef CONFIG_AES256_CBC_ESSIV
-        /* If we use AES-CBC-ESSIV, we might have to reinject the key! */
-        // is there a key schedule request ?
-        ret = sys_ipc(IPC_RECV_ASYNC, &id, &size, (char*)&ipc_sync_cmd_data);
-
-        if (ret == SYS_E_DONE) {
-            cryp_init_injector(CBC_ESSIV_key, KEY_256);
-
-            ipc_sync_cmd.magic = MAGIC_CRYPTO_INJECT_RESP;
-            ipc_sync_cmd.state = SYNC_DONE;
-
-            sys_ipc(IPC_SEND_SYNC, id_crypto, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+        ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd_data);
+        if (ret != SYS_E_DONE) {
+            continue;
         }
+        
+        if (id == id_crypto) {
+            /*******************************
+             * Managing Crypto task IPC
+             ******************************/
+            switch (ipc_sync_cmd_data.magic) {
+
+                /********* Key injection request *************/
+#ifdef CONFIG_AES256_CBC_ESSIV
+                case MAGIC_CRYPTO_INJECT_CMD:
+                    {
+                        /* If we use AES-CBC-ESSIV, we might have to reinject the key! */
+                        // is there a key schedule request ?
+
+                        if (ret == SYS_E_DONE) {
+                            cryp_init_injector(CBC_ESSIV_key, KEY_256);
+
+                            ipc_sync_cmd.magic = MAGIC_CRYPTO_INJECT_RESP;
+                            ipc_sync_cmd.state = SYNC_DONE;
+
+                            sys_ipc(IPC_SEND_SYNC, id_crypto, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+                        }
+                        break;
+                    }
 #endif
+
+                    /********* defaulting to none    *************/
+                default:
+                    {
+                        break;
+                    }
+            }
+        }
+
+        if (id == id_pin) {
+            /*******************************
+             * Managing Pin task IPC
+             ******************************/
+            switch (ipc_sync_cmd_data.magic) {
+                /********* full authentication request *******/
+                case MAGIC_CRYPTO_AUTH_CMD:
+                    {
+                        /* Here Pin is requesting a complete
+                         * authentication phase with the token */
+                        if (auth_token_exchanges(&curr_token_channel, auth_token_ask_pet_pin, auth_token_ask_user_pin, CBC_ESSIV_key, sizeof(CBC_ESSIV_key), CBC_ESSIV_h_key, sizeof(CBC_ESSIV_h_key)))
+                        {
+                            goto err;
+                        }
+                        // channel_state = CHAN_UNLOCKED; /* token_lock() set this var to CHAN_LOCKED */
+
+                        break;
+                    }
+
+                /********* set user pin into smartcard *******/
+                case MAGIC_SETTINGS_SET_USERPIN:
+                    {
+                        /*
+                        if (channel_state != CHAN_UNLOCKED) {
+                          printf("channel has not been unlocked. You must authenticate yourself first\n");
+                          continue;
+                        }
+                         */
+                        /* set the new user pin. The CRYPTO_AUTH_CMD must have been passed and the channel being unlocked */
+                        printf("updated user pin to %s (len %d) in smartcard\n", ipc_sync_cmd_data.data.u8, ipc_sync_cmd_data.data_size);
+
+#if 0
+                        if (token_change_pin(&curr_token_channel, (const char*)ipc_sync_cmd_data.data.u8, ipc_sync_cmd_data.data_size, TOKEN_USER_PIN, const databag *keybag, uint32_t keybag_num, uint32_t pbkdf2_iterations))
+                        {
+                            printf("Unable to change user pin !!!\n");
+                            goto err;
+                        }
+#endif
+
+                        break;
+                    }
+
+                /********* set pet pin into smartcard *******/
+                case MAGIC_SETTINGS_SET_PETPIN:
+                    {
+                        /*
+                        if (channel_state != CHAN_UNLOCKED) {
+                          printf("channel has not been unlocked. You must authenticate yourself first\n");
+                          continue;
+                        }
+                         */
+                        /* set the new user pin. The CRYPTO_AUTH_CMD must have been passed and the channel being unlocked */
+                        printf("updated pet pin to %s (len %d) in smartcard\n", ipc_sync_cmd_data.data.u8, ipc_sync_cmd_data.data_size);
+
+#if 0
+                        if (token_change_pin(&curr_token_channel, (const char*)ipc_sync_cmd_data.data.u8, ipc_sync_cmd_data.data_size, TOKEN_PET_PIN, const databag *keybag, uint32_t keybag_num, uint32_t pbkdf2_iterations))
+                        {
+                            printf("Unable to change user pin !!!\n");
+                            goto err;
+                        }
+#endif
+
+                        break;
+                    }
+
+                /********* set pet pin into smartcard *******/
+                case MAGIC_SETTINGS_SET_PETNAME:
+                    {
+                        /*
+                        if (channel_state != CHAN_UNLOCKED) {
+                          printf("channel has not been unlocked. You must authenticate yourself first\n");
+                          continue;
+                        }
+                         */
+                        /* set the new user pin. The CRYPTO_AUTH_CMD must have been passed and the channel being unlocked */
+                        printf("updated pet name to %s (len %d) in smartcard\n", ipc_sync_cmd_data.data.u8, ipc_sync_cmd_data.data_size);
+
+#if 0
+                        if (token_change_pin(&curr_token_channel, (const char*)ipc_sync_cmd_data.data.u8, ipc_sync_cmd_data.data_size, TOKEN_PET_PIN, const databag *keybag, uint32_t keybag_num, uint32_t pbkdf2_iterations))
+                        {
+                            printf("Unable to change user pin !!!\n");
+                            goto err;
+                        }
+#endif
+
+                        break;
+                    }
+
+
+
+                    /********* defaulting to none    *************/
+                default:
+                    {
+                        break;
+                    }
+            }
+
+        }
+
         // nothing ? just wait for next event
         sys_yield();
     }
