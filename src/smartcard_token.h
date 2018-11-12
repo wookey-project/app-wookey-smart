@@ -42,6 +42,16 @@ typedef enum {
         TOKEN_USER_PIN = 2,
 } token_pin_types;
 
+
+/*
+ * token validation enumerate with
+ * anti hardened encoding
+ */
+typedef enum {
+  TOKEN_ACK_VALID   = 0x100101101,
+  TOKEN_ACK_INVALID = 0x101000111,
+} token_ack_state;
+
 /* A databag structure is a pointer to data
  * and an information about its size.
  */
@@ -81,7 +91,7 @@ typedef enum {
 } token_pin_actions;
 
 typedef int (*cb_token_request_pin_t)(char *pin, unsigned int *pin_len, token_pin_types pin_type, token_pin_actions action);
-typedef int (*cb_token_acknowledge_pin_t)(uint8_t ok, token_pin_types pin_type, token_pin_actions action);
+typedef int (*cb_token_acknowledge_pin_t)(token_ack_state ack, token_pin_types pin_type, token_pin_actions action);
 typedef int (*cb_token_request_pet_name_t)(char *pet_name, unsigned int *pet_name_len);
 typedef int (*cb_token_request_pet_name_confirmation_t)(const char *pet_name, unsigned int pet_name_len);
 

@@ -85,7 +85,7 @@ err:
     return -1;
 }
 
-int auth_token_acknowledge_pin(uint8_t ok, token_pin_types pin_type, token_pin_actions action){
+int auth_token_acknowledge_pin(token_ack_state ack, token_pin_types pin_type, token_pin_actions action){
     struct sync_command      ipc_sync_cmd = { 0 };
 
     if(action == TOKEN_PIN_AUTHENTICATE){
@@ -108,7 +108,7 @@ int auth_token_acknowledge_pin(uint8_t ok, token_pin_types pin_type, token_pin_a
     else{
         goto err;
     }
-    if(ok){
+    if(ack == TOKEN_ACK_VALID){
     	ipc_sync_cmd.state = SYNC_DONE;
     } else{
     	ipc_sync_cmd.state = SYNC_FAILURE;
