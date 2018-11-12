@@ -80,16 +80,16 @@ typedef enum {
 	TOKEN_PIN_MODIFY = 1,
 } token_pin_actions;
 
-typedef int (*cb_token_ask_pin_t)(char *pin, unsigned int *pin_len, token_pin_types pin_type, token_pin_actions action);
-typedef int (*cb_token_confirm_pin_t)(uint8_t ok, token_pin_types pin_type, token_pin_actions action);
-typedef int (*cb_token_ask_pet_name_t)(char *pet_name, unsigned int *pet_name_len);
-typedef int (*cb_token_confirm_pet_name_t)(const char *pet_name, unsigned int pet_name_len);
+typedef int (*cb_token_request_pin_t)(char *pin, unsigned int *pin_len, token_pin_types pin_type, token_pin_actions action);
+typedef int (*cb_token_acknowledge_pin_t)(uint8_t ok, token_pin_types pin_type, token_pin_actions action);
+typedef int (*cb_token_request_pet_name_t)(char *pet_name, unsigned int *pet_name_len);
+typedef int (*cb_token_request_pet_name_confirmation_t)(const char *pet_name, unsigned int pet_name_len);
 
 typedef struct {
-	cb_token_ask_pin_t ask_pin;
-	cb_token_confirm_pin_t confirm_pin;
-	cb_token_ask_pet_name_t ask_pet_name;
-	cb_token_confirm_pet_name_t confirm_pet_name;
+	cb_token_request_pin_t                   request_pin;
+	cb_token_acknowledge_pin_t               acknowledge_pin;
+	cb_token_request_pet_name_t              request_pet_name;
+	cb_token_request_pet_name_confirmation_t request_pet_name_confirmation;
 } cb_token_callbacks;
 
 typedef enum {

@@ -1272,14 +1272,14 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			/****************************************************************/
 			case TOKEN_UNLOCK_ASK_PET_PIN:{
 				/* Ask PET pin to the user */
-				if((callbacks == NULL) || (callbacks->ask_pin == NULL)){
+				if((callbacks == NULL) || (callbacks->request_pin == NULL)){
 					goto err;
 				}
 			        /* Ask the user for the PET PIN */
 			        pet_pin_len = sizeof(pet_pin);
-			        if(callbacks->ask_pin(pet_pin, &pet_pin_len, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE)){
+			        if(callbacks->request_pin(pet_pin, &pet_pin_len, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE)){
 				        printf("[Pet Pin] Failed to ask for pet pin!\n");
-					callbacks->confirm_pin(0, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE);
+					callbacks->acknowledge_pin(0, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE);
 		                	goto err;
         			}
 				got_pet_pin = 1;
@@ -1289,33 +1289,33 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			case TOKEN_UNLOCK_PRESENT_PET_PIN:{
 				uint8_t pin_ok;
 				unsigned int remaining_tries;
-				if((callbacks == NULL) || (callbacks->ask_pin == NULL) || (callbacks->confirm_pin == NULL)){
+				if((callbacks == NULL) || (callbacks->request_pin == NULL) || (callbacks->acknowledge_pin == NULL)){
 					goto err;
 				}
 				/* If we have already asked for the PET pin, no need to do it again! */
 				if(!got_pet_pin){
 				        /* Ask the user for the PET PIN */
 			        	pet_pin_len = sizeof(pet_pin);
-				        if(callbacks->ask_pin(pet_pin, &pet_pin_len, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE)){
+				        if(callbacks->request_pin(pet_pin, &pet_pin_len, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE)){
 					        printf("[Pet Pin] Failed to ask for pet pin!\n");
-						callbacks->confirm_pin(0, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE);	
+						callbacks->acknowledge_pin(0, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE);	
 		        	        	goto err;
         				}
 				}
 				/* Send the PIN to token */
 				if(token_send_pin(channel, pet_pin, pet_pin_len, &pin_ok, &remaining_tries, TOKEN_PET_PIN)){
 					printf("[Token] Error sending PET pin\n");
-					callbacks->confirm_pin(0, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE);	
+					callbacks->acknowledge_pin(0, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE);	
 					goto err;
 				}
 				if(!pin_ok){
 					printf("[Token] PET PIN is NOT OK, remaining tries = %d\n", remaining_tries);
-					if(callbacks->confirm_pin(0, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE)){
+					if(callbacks->acknowledge_pin(0, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE)){
 						goto err;
 					}
 				}
 				else{
-					if(callbacks->confirm_pin(1, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE)){
+					if(callbacks->acknowledge_pin(1, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE)){
 						goto err;
 					}
 				}
@@ -1324,14 +1324,14 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			/****************************************************************/
 			case TOKEN_UNLOCK_ASK_USER_PIN:{
 				/* Ask user pin to the user */
-				if((callbacks == NULL) || (callbacks->ask_pin == NULL) || (callbacks->confirm_pin == NULL)){
+				if((callbacks == NULL) || (callbacks->request_pin == NULL) || (callbacks->acknowledge_pin == NULL)){
 					goto err;
 				}
 			        /* Ask the user for the PET PIN */
 			        user_pin_len = sizeof(user_pin);
-			        if(callbacks->ask_pin(user_pin, &user_pin_len, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE)){
+			        if(callbacks->request_pin(user_pin, &user_pin_len, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE)){
 				        printf("[User Pin] Failed to ask for pet pin!\n");
-					callbacks->confirm_pin(0, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE);	
+					callbacks->acknowledge_pin(0, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE);	
 		                	goto err;
         			}
 				got_user_pin = 1;
@@ -1341,36 +1341,36 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			case TOKEN_UNLOCK_PRESENT_USER_PIN:{
 				uint8_t pin_ok;
 				unsigned int remaining_tries;
-				if((callbacks == NULL) || (callbacks->ask_pin == NULL) || (callbacks->confirm_pin == NULL)){
+				if((callbacks == NULL) || (callbacks->request_pin == NULL) || (callbacks->acknowledge_pin == NULL)){
 					goto err;
 				}
 				/* If we have already asked for the user pin, no need to do it again! */
 				if(!got_user_pin){
-					if(callbacks->ask_pin == NULL){
+					if(callbacks->request_pin == NULL){
 						goto err;
 					}
 				        /* Ask the user for the user PIN */
 			        	user_pin_len = sizeof(user_pin);
-				        if(callbacks->ask_pin(user_pin, &user_pin_len, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE)){
+				        if(callbacks->request_pin(user_pin, &user_pin_len, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE)){
 					        printf("[User Pin] Failed to ask for user pin!\n");
-						callbacks->confirm_pin(0, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE);	
+						callbacks->acknowledge_pin(0, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE);	
 		        	        	goto err;
         				}
 				}
 				/* Send the PIN to token */
 				if(token_send_pin(channel, user_pin, user_pin_len, &pin_ok, &remaining_tries, TOKEN_USER_PIN)){
 					printf("[Token] Error sending user pin\n");
-					callbacks->confirm_pin(0, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE);	
+					callbacks->acknowledge_pin(0, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE);	
 					goto err;
 				}
 				if(!pin_ok){
 					printf("[Token] user PIN is NOT OK, remaining tries = %d\n", remaining_tries);
-					if(callbacks->confirm_pin(0, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE)){
+					if(callbacks->acknowledge_pin(0, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE)){
 						goto err;
 					}
 				}
 				else{
-					if(callbacks->confirm_pin(1, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE)){
+					if(callbacks->acknowledge_pin(1, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE)){
 						goto err;
 					}
 				}
@@ -1378,7 +1378,7 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			}
 			/****************************************************************/
 			case TOKEN_UNLOCK_CONFIRM_PET_NAME:{
-				if((callbacks == NULL) || (callbacks->confirm_pet_name == NULL)){
+				if((callbacks == NULL) || (callbacks->request_pet_name_confirmation == NULL)){
 					goto err;
 				}
 			        /*************** Get PET Name */
@@ -1387,7 +1387,7 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			                printf("[Token] ERROR when getting the PET name\n");
 			                goto err;
 			        }
-				if(callbacks->confirm_pet_name(pet_name, pet_name_len)){
+				if(callbacks->request_pet_name_confirmation(pet_name, pet_name_len)){
 					printf("[Token] Failed to confirm the PET name by the user\n");
 					goto err;
 				}
@@ -1395,52 +1395,52 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			}
 			/****************************************************************/
 			case TOKEN_UNLOCK_CHANGE_PET_PIN:{
-				if((callbacks == NULL) || (callbacks->ask_pin == NULL) || (callbacks->confirm_pin == NULL)){
+				if((callbacks == NULL) || (callbacks->request_pin == NULL) || (callbacks->acknowledge_pin == NULL)){
 					goto err;
 				}
 				/* Ask the user the new PET pin */
 			        pet_pin_len = sizeof(pet_pin);
-			        if(callbacks->ask_pin(pet_pin, &pet_pin_len, TOKEN_PET_PIN, TOKEN_PIN_MODIFY)){
+			        if(callbacks->request_pin(pet_pin, &pet_pin_len, TOKEN_PET_PIN, TOKEN_PIN_MODIFY)){
 				        printf("[Pet Pin] Failed to ask for the NEW pet pin!\n");
-					callbacks->confirm_pin(0, TOKEN_PET_PIN, TOKEN_PIN_MODIFY);
+					callbacks->acknowledge_pin(0, TOKEN_PET_PIN, TOKEN_PIN_MODIFY);
 		                	goto err;
         			}
 				/* Modify the pet pin */
 				if(token_change_pin(channel, pet_pin, pet_pin_len, TOKEN_PET_PIN)){
 					goto err;
 				}
-				callbacks->confirm_pin(1, TOKEN_PET_PIN, TOKEN_PIN_MODIFY);
+				callbacks->acknowledge_pin(1, TOKEN_PET_PIN, TOKEN_PIN_MODIFY);
 				break;
 			}
 			/****************************************************************/
 			case TOKEN_UNLOCK_CHANGE_USER_PIN:{
-				if((callbacks == NULL) || (callbacks->ask_pin == NULL) || (callbacks->confirm_pin == NULL)){
+				if((callbacks == NULL) || (callbacks->request_pin == NULL) || (callbacks->acknowledge_pin == NULL)){
 					goto err;
 				}
 				/* Ask the user the new user pin */
 			        user_pin_len = sizeof(user_pin);
-			        if(callbacks->ask_pin(user_pin, &user_pin_len, TOKEN_USER_PIN, TOKEN_PIN_MODIFY)){
+			        if(callbacks->request_pin(user_pin, &user_pin_len, TOKEN_USER_PIN, TOKEN_PIN_MODIFY)){
 				        printf("[User Pin] Failed to ask for the NEW user pin!\n");
-					callbacks->confirm_pin(0, TOKEN_USER_PIN, TOKEN_PIN_MODIFY);
+					callbacks->acknowledge_pin(0, TOKEN_USER_PIN, TOKEN_PIN_MODIFY);
 		                	goto err;
         			}
 				/* Modify the pet pin */
 				if(token_change_pin(channel, user_pin, user_pin_len, TOKEN_USER_PIN)){
 					goto err;
 				}
-				callbacks->confirm_pin(1, TOKEN_USER_PIN, TOKEN_PIN_MODIFY);
+				callbacks->acknowledge_pin(1, TOKEN_USER_PIN, TOKEN_PIN_MODIFY);
 				break;
 			}
 			/****************************************************************/
 			case TOKEN_UNLOCK_CHANGE_PET_NAME:{
-				if((callbacks == NULL) || (callbacks->ask_pet_name == NULL)){
+				if((callbacks == NULL) || (callbacks->request_pet_name == NULL)){
 					goto err;
 				}
 				/* Ask the user for the new pet name */
 			        pet_name_len = sizeof(pet_name);
-			        if(callbacks->ask_pet_name(pet_name, &pet_name_len)){
+			        if(callbacks->request_pet_name(pet_name, &pet_name_len)){
 				        printf("[Pet Name] Failed to ask for the NEW pet name!\n");
-					if(callbacks->confirm_pet_name(pet_name, pet_name_len)){
+					if(callbacks->request_pet_name_confirmation(pet_name, pet_name_len)){
 						printf("[Token] Failed to confirm the PET name by the user\n");
 						goto err;
 					}

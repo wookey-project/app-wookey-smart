@@ -113,11 +113,11 @@ err:
 
 }
 
-static cb_token_ask_pin_t external_ask_pin = NULL;
+static cb_token_request_pin_t external_request_pin = NULL;
 static char saved_user_pin[32] = { 0 };
 static char saved_user_pin_len = 0;
-static int local_ask_pin(char *pin, unsigned int *pin_len, token_pin_types pin_type, token_pin_actions action){
-	external_ask_pin(pin, pin_len, pin_type, action);
+static int local_request_pin(char *pin, unsigned int *pin_len, token_pin_types pin_type, token_pin_actions action){
+	external_request_pin(pin, pin_len, pin_type, action);
 	if((pin_type == TOKEN_USER_PIN) && (action == TOKEN_PIN_AUTHENTICATE)){
 		/* Save the PIN for later */
 		if(*pin_len <= sizeof(saved_user_pin)){
@@ -164,8 +164,8 @@ int auth_token_exchanges(token_channel *channel, cb_token_callbacks *callbacks, 
 	}
 
 	cb_token_callbacks local_callbacks = (*callbacks);
-	external_ask_pin = callbacks->ask_pin;
-	local_callbacks.ask_pin = local_ask_pin;
+	external_request_pin = callbacks->request_pin;
+	local_callbacks.request_pin = local_request_pin;
 	token_unlock_operations ops[] = { TOKEN_UNLOCK_INIT_TOKEN, TOKEN_UNLOCK_ASK_PET_PIN, TOKEN_UNLOCK_ESTABLISH_SECURE_CHANNEL, TOKEN_UNLOCK_PRESENT_PET_PIN, TOKEN_UNLOCK_CONFIRM_PET_NAME, TOKEN_UNLOCK_PRESENT_USER_PIN };
 	if(auth_token_unlock_ops_exec(channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &local_callbacks)){
 		goto err;

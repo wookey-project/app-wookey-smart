@@ -19,7 +19,7 @@
 token_channel curr_token_channel = { .channel_initialized = 0, .secure_channel = 0, .IV = { 0 }, .first_IV = { 0 }, .AES_key = { 0 }, .HMAC_key = { 0 }, .pbkdf2_iterations = 0, .platform_salt_len = 0 };
 uint8_t id_pin = 0;
 
-int auth_token_ask_pin(char *pin, unsigned int *pin_len, token_pin_types pin_type, token_pin_actions action)
+int auth_token_request_pin(char *pin, unsigned int *pin_len, token_pin_types pin_type, token_pin_actions action)
 {
     struct sync_command      ipc_sync_cmd = { 0 };
     struct sync_command_data ipc_sync_cmd_data = { 0 };
@@ -85,7 +85,7 @@ err:
     return -1;
 }
 
-int auth_token_confirm_pin(uint8_t ok, token_pin_types pin_type, token_pin_actions action){
+int auth_token_acknowledge_pin(uint8_t ok, token_pin_types pin_type, token_pin_actions action){
     struct sync_command      ipc_sync_cmd = { 0 };
 
     if(action == TOKEN_PIN_AUTHENTICATE){
@@ -120,7 +120,7 @@ err:
 	return -1;
 }
 
-int auth_token_ask_pet_name(char *pet_name, unsigned int *pet_name_len)
+int auth_token_request_pet_name(char *pet_name, unsigned int *pet_name_len)
 {
     struct sync_command      ipc_sync_cmd = { 0 };
     struct sync_command_data ipc_sync_cmd_data = { 0 };
@@ -167,7 +167,7 @@ err:
 
 
 
-int auth_token_confirm_pet_name(const char *pet_name, unsigned int pet_name_len)
+int auth_token_request_pet_name_confirmation(const char *pet_name, unsigned int pet_name_len)
 {
     /************* Send pet name to pin */
     struct sync_command      ipc_sync_cmd = { 0 };
@@ -348,7 +348,12 @@ int _main(uint32_t task_id)
     curr_token_channel.card.type = SMARTCARD_UNKNOWN;
     
     /* Token callbacks */
-    cb_token_callbacks auth_token_callbacks = { .ask_pin = auth_token_ask_pin, .confirm_pin = auth_token_confirm_pin, .ask_pet_name = auth_token_ask_pet_name, .confirm_pet_name = auth_token_confirm_pet_name };
+    cb_token_callbacks auth_token_callbacks = {
+        .request_pin                   = auth_token_request_pin,
+        .acknowledge_pin               = auth_token_acknowledge_pin,
+        .request_pet_name              = auth_token_request_pet_name,
+        .request_pet_name_confirmation = auth_token_request_pet_name_confirmation
+    };
     if(!tokenret && auth_token_exchanges(&curr_token_channel, &auth_token_callbacks, CBC_ESSIV_key, sizeof(CBC_ESSIV_key), CBC_ESSIV_h_key, sizeof(CBC_ESSIV_h_key)))
     {
         goto err;
