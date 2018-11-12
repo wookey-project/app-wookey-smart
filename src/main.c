@@ -21,8 +21,7 @@ uint8_t id_pin = 0;
 
 int auth_token_request_pin(char *pin, unsigned int *pin_len, token_pin_types pin_type, token_pin_actions action)
 {
-    struct sync_command      ipc_sync_cmd = { 0 };
-    struct sync_command_data ipc_sync_cmd_data = { 0 };
+    struct sync_command_data ipc_sync_cmd = { 0 };
     uint8_t ret;
     uint8_t id;
     logsize_t size = 0;
@@ -31,9 +30,11 @@ int auth_token_request_pin(char *pin, unsigned int *pin_len, token_pin_types pin
 
     if(action == TOKEN_PIN_AUTHENTICATE){
         printf("Request PIN for authentication\n");
+        ipc_sync_cmd.data.req.sc_req = SC_REQ_AUTHENTICATE;
     }
     else if (action == TOKEN_PIN_MODIFY){
         printf("Request PIN for modification\n");
+        ipc_sync_cmd.data.req.sc_req = SC_REQ_MODIFY;
     }
     else{
         goto err;
@@ -42,15 +43,15 @@ int auth_token_request_pin(char *pin, unsigned int *pin_len, token_pin_types pin
     /*********************************************
      * Request PIN to pin task
      *********************************************/
+    cmd_magic = MAGIC_CRYPTO_PIN_CMD;
+    resp_magic = MAGIC_CRYPTO_PIN_RESP;
+
     if(pin_type == TOKEN_PET_PIN){
-	printf("Ask pet pin to PIN task\n");
-        cmd_magic = MAGIC_CRYPTO_PETPIN_CMD;
-        resp_magic = MAGIC_CRYPTO_PETPIN_RESP;
-    }
-    else if(pin_type == TOKEN_USER_PIN){
+        printf("Ask pet pin to PIN task\n");
+        ipc_sync_cmd.data.req.sc_type = SC_PET_PIN;
+    } else if (pin_type == TOKEN_USER_PIN){
 	printf("Ask user pin to PIN task\n");
-        cmd_magic = MAGIC_CRYPTO_PIN_CMD;
-        resp_magic = MAGIC_CRYPTO_PIN_RESP;
+        ipc_sync_cmd.data.req.sc_type = SC_USER_PIN;
     }
     else{
 	printf("Error: asking for unknown type pin ...\n");
@@ -60,24 +61,22 @@ int auth_token_request_pin(char *pin, unsigned int *pin_len, token_pin_types pin
     ipc_sync_cmd.state = SYNC_ASK_FOR_DATA;
 
     do {
-        ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
-    } while (ret != SYS_E_DONE);
+        ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd);
+    } while (ret == SYS_E_BUSY);
 
     /* Now wait for Acknowledge from pin */
     id = id_pin;
     size = sizeof(struct sync_command_data); /* max pin size: 32 */
 
-    do {
-        ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd_data);
-    } while (ret != SYS_E_DONE);
-    if (   ipc_sync_cmd_data.magic == resp_magic
-            && ipc_sync_cmd_data.state == SYNC_DONE) {
+    ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
+    if (   ipc_sync_cmd.magic == resp_magic
+            && ipc_sync_cmd.state == SYNC_DONE) {
         printf("received pin from PIN\n");
-        if(*pin_len < ipc_sync_cmd_data.data_size){
+        if(*pin_len < ipc_sync_cmd.data_size){
               goto err;
         }
-        memcpy(pin, (void*)&(ipc_sync_cmd_data.data.u8), ipc_sync_cmd_data.data_size);
-        *pin_len = ipc_sync_cmd_data.data_size;
+        memcpy(pin, (void*)&(ipc_sync_cmd.data.u8), ipc_sync_cmd.data_size);
+        *pin_len = ipc_sync_cmd.data_size;
         return 0;
     }
 
@@ -85,8 +84,10 @@ err:
     return -1;
 }
 
-int auth_token_acknowledge_pin(token_ack_state ack, token_pin_types pin_type, token_pin_actions action){
+int auth_token_acknowledge_pin(token_ack_state ack, token_pin_types pin_type, token_pin_actions action)
+{
     struct sync_command      ipc_sync_cmd = { 0 };
+    uint8_t ret;
 
     if(action == TOKEN_PIN_AUTHENTICATE){
         printf("Request PIN for authentication\n");
@@ -99,21 +100,19 @@ int auth_token_acknowledge_pin(token_ack_state ack, token_pin_types pin_type, to
     }
 
 
-    if(pin_type == TOKEN_USER_PIN){
+    if (pin_type == TOKEN_USER_PIN || pin_type == TOKEN_PET_PIN) {
        ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
-    }
-    else if(pin_type == TOKEN_PET_PIN){
-       ipc_sync_cmd.magic = MAGIC_CRYPTO_PETPIN_RESP;
-    }
-    else{
+    } else {
         goto err;
     }
     if(ack == TOKEN_ACK_VALID){
-    	ipc_sync_cmd.state = SYNC_DONE;
+    	ipc_sync_cmd.state = SYNC_ACKNOWLEDGE;
     } else{
     	ipc_sync_cmd.state = SYNC_FAILURE;
     }
-    sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+    do {
+        ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+    } while (ret == SYS_E_BUSY);
 
 	return 0;
 err:
@@ -133,23 +132,21 @@ int auth_token_request_pet_name(char *pet_name, unsigned int *pet_name_len)
     /*********************************************
      * Request PET name to pin task
      *********************************************/
-    cmd_magic = MAGIC_CRYPTO_PETNAME_CMD;
-    resp_magic = MAGIC_CRYPTO_PETNAME_RESP;
+    cmd_magic = MAGIC_CRYPTO_PIN_CMD;
+    resp_magic = MAGIC_CRYPTO_PIN_RESP;
 
     ipc_sync_cmd.magic = cmd_magic;
     ipc_sync_cmd.state = SYNC_ASK_FOR_DATA;
 
     do {
-        ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
-    } while (ret != SYS_E_DONE);
+    ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+    } while (ret == SYS_E_BUSY);
 
     /* Now wait for Acknowledge from pin */
     id = id_pin;
     size = sizeof(struct sync_command_data); /* max pin size: 32 */
 
-    do {
-        ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd_data);
-    } while (ret != SYS_E_DONE);
+    ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd_data);
     if (   ipc_sync_cmd_data.magic == resp_magic
             && ipc_sync_cmd_data.state == SYNC_DONE) {
         printf("received pin from PIN\n");
@@ -170,40 +167,38 @@ err:
 int auth_token_request_pet_name_confirmation(const char *pet_name, unsigned int pet_name_len)
 {
     /************* Send pet name to pin */
-    struct sync_command      ipc_sync_cmd = { 0 };
-    struct sync_command_data ipc_sync_cmd_data = { 0 };
+    struct sync_command_data ipc_sync_cmd = { 0 };
     logsize_t size = 0;
     uint8_t id = 0;
+    uint8_t ret;
 
-    /* receive pet name requet from pin */
+    ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_CMD;
+    ipc_sync_cmd.state = SYNC_WAIT;
+    ipc_sync_cmd.data.req.sc_type = SC_PET_NAME;
+    ipc_sync_cmd.data.req.sc_req = SC_REQ_AUTHENTICATE;
+
+    // FIXME: string length check to add
+    memcpy(ipc_sync_cmd.data.req.sc_petname, pet_name, pet_name_len);
+
+    printf("requesting Pet name confirmation from PIN\n");
+    do {
+        ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd);
+    } while (ret == SYS_E_BUSY);
+
+
+    printf("waiting for acknowledge from PIN for Pet name...\n");
+    /* receiving user acknowledge for pet name */
     size = sizeof(struct sync_command);
     id = id_pin;
     sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
 
-    if (ipc_sync_cmd.magic == MAGIC_CRYPTO_PETNAME_CMD &&
-        ipc_sync_cmd.state == SYNC_ASK_FOR_DATA) {
-
-        ipc_sync_cmd_data.magic = MAGIC_CRYPTO_PETNAME_RESP;
-        ipc_sync_cmd_data.state = SYNC_DONE;
-        ipc_sync_cmd_data.data_size = pet_name_len;
-        memset(&ipc_sync_cmd_data.data.u8, 0x0, 32);
-        memcpy(&ipc_sync_cmd_data.data.u8, pet_name, pet_name_len);
-
-        sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd_data);
-
-        /* now we wait for PIN to inform us if the pet name is okay for the user */
-        id = id_pin;
-        size = sizeof(struct sync_command);
-        sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
-        if (ipc_sync_cmd.magic != MAGIC_CRYPTO_PETNAME_RESP ||
-            ipc_sync_cmd.state != SYNC_ACKNOWLEDGE) {
-            printf("Pin hasn't acknowledge the Pet name !\n");
-            goto err;
-        }
+    if (ipc_sync_cmd.magic != MAGIC_CRYPTO_PIN_RESP ||
+        ipc_sync_cmd.state != SYNC_ACKNOWLEDGE) {
+        printf("[AUTH Token] Pen name has not been acknowledged by the user\n");
+        goto err;
     }
 
     printf("[AUTH Token] Pen name acknowledge by the user\n");
-
 
     return 0;
 err:
@@ -282,9 +277,7 @@ int _main(uint32_t task_id)
 
     /* First, wait for pin to finish its init phase */
     id = id_pin;
-    do {
-        ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
-    } while (ret != SYS_E_DONE);
+    ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
 
     if (   ipc_sync_cmd.magic == MAGIC_TASK_STATE_CMD
         && ipc_sync_cmd.state == SYNC_READY) {
@@ -295,9 +288,9 @@ int _main(uint32_t task_id)
     ipc_sync_cmd.state = SYNC_ACKNOWLEDGE;
 
     do {
-      size = sizeof(struct sync_command);
-      ret = sys_ipc(IPC_SEND_SYNC, id_pin, size, (char*)&ipc_sync_cmd);
-    } while (ret != SYS_E_DONE);
+        size = sizeof(struct sync_command);
+        ret = sys_ipc(IPC_SEND_SYNC, id_pin, size, (char*)&ipc_sync_cmd);
+    } while (ret == SYS_E_BUSY);
 
     /* Then Syncrhonize with crypto */
     size = sizeof(struct sync_command);
@@ -307,15 +300,13 @@ int _main(uint32_t task_id)
     ipc_sync_cmd.state = SYNC_READY;
 
     do {
-      ret = sys_ipc(IPC_SEND_SYNC, id_crypto, size, (char*)&ipc_sync_cmd);
-    } while (ret != SYS_E_DONE);
+        ret = sys_ipc(IPC_SEND_SYNC, id_crypto, size, (char*)&ipc_sync_cmd);
+    } while (ret == SYS_E_BUSY);
 
     /* Now wait for Acknowledge from Crypto */
     id = id_crypto;
 
-    do {
-        ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
-    } while (ret != SYS_E_DONE);
+    ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
     if (   ipc_sync_cmd.magic == MAGIC_TASK_STATE_RESP
         && ipc_sync_cmd.state == SYNC_ACKNOWLEDGE) {
         printf("crypto has acknowledge end_of_init, continuing\n");
@@ -328,9 +319,7 @@ int _main(uint32_t task_id)
     /* First, wait for pin to finish its init phase */
     id = id_crypto;
     size = sizeof(struct sync_command);
-    do {
-        ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
-    } while (ret != SYS_E_DONE);
+    ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
     if (   ipc_sync_cmd.magic == MAGIC_CRYPTO_INJECT_CMD
         && ipc_sync_cmd.state == SYNC_READY) {
         printf("crypto is requesting key injection...\n");
@@ -403,7 +392,7 @@ int _main(uint32_t task_id)
     do {
       size = sizeof(struct sync_command_data);
       ret = sys_ipc(IPC_SEND_SYNC, id_crypto, size, (char*)&ipc_sync_cmd_data);
-    } while (ret != SYS_E_DONE);
+    } while (ret == SYS_E_BUSY);
 
     // infinite loop at end of init
     printf("Acknowedge send, going back to sleep up keeping only smartcard watchdog.\n");
@@ -478,7 +467,7 @@ int _main(uint32_t task_id)
                     }
 
                 /********* set user pin into smartcard *******/
-                case MAGIC_SETTINGS_SET_USERPIN:
+                case MAGIC_SETTINGS_CMD:
                     {
                         /*
                         if (channel_state != CHAN_UNLOCKED) {
@@ -498,6 +487,7 @@ int _main(uint32_t task_id)
                         break;
                     }
 
+#if 0
                 /********* set pet pin into smartcard *******/
                 case MAGIC_SETTINGS_SET_PETPIN:
                     {
@@ -528,6 +518,7 @@ int _main(uint32_t task_id)
                         break;
                     }
 
+#endif
                 /********* lock the device (by rebooting) ***/
                 case MAGIC_SETTINGS_LOCK:
                     {

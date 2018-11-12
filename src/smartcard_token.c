@@ -31,137 +31,157 @@
 int token_send_receive(token_channel *channel, SC_APDU_cmd *apdu, SC_APDU_resp *resp);
 
 /* [RB] FIXME: this is a hell of number of arguments ... We should clearly find a way to reduce this! */
-int decrypt_platform_keys(token_channel *channel, const char *pet_pin, uint32_t pet_pin_len, const databag *keybag, uint32_t keybag_num, databag *decrypted_keybag, uint32_t decrypted_keybag_num, uint32_t pbkdf2_iterations){
-        uint8_t pbkdf[SHA512_DIGEST_SIZE];
-        uint32_t pbkdf_len;
-        hmac_context hmac_ctx;
-        uint8_t hmac[SHA256_DIGEST_SIZE];
-        uint32_t hmac_len = sizeof(hmac);
-        aes_context aes_context;
-        uint8_t *platform_salt = NULL;
-        uint32_t platform_salt_len = 0;
-        uint8_t *platform_iv = NULL;
-        uint32_t platform_iv_len = 0;
-        uint8_t *platform_hmac_tag = NULL;
-        uint32_t platform_hmac_tag_len = 0;
-        unsigned int i;
-        uint8_t token_key[SHA512_DIGEST_SIZE];
-	SC_APDU_cmd apdu;
-	SC_APDU_resp resp;
+int decrypt_platform_keys(token_channel *channel, const char *pet_pin, uint32_t pet_pin_len, const databag *keybag, uint32_t keybag_num, databag *decrypted_keybag, uint32_t decrypted_keybag_num, uint32_t pbkdf2_iterations)
+{
+    uint8_t pbkdf[SHA512_DIGEST_SIZE];
+    uint32_t pbkdf_len;
+    hmac_context hmac_ctx;
+    uint8_t hmac[SHA256_DIGEST_SIZE];
+    uint32_t hmac_len = sizeof(hmac);
+    aes_context aes_context;
+    uint8_t *platform_salt = NULL;
+    uint32_t platform_salt_len = 0;
+    uint8_t *platform_iv = NULL;
+    uint32_t platform_iv_len = 0;
+    uint8_t *platform_hmac_tag = NULL;
+    uint32_t platform_hmac_tag_len = 0;
+    unsigned int i;
+    uint8_t token_key[SHA512_DIGEST_SIZE];
+    SC_APDU_cmd apdu;
+    SC_APDU_resp resp;
 
-	/* Sanity checks */
-        if((pet_pin == NULL) || (keybag == NULL) || (decrypted_keybag == NULL)){
-                goto err;
-        }
-        /* Sanity checks on lengths 
-         * A Keybag contains at least an IV, a salt and a HMAC tag
-         */
-        if(keybag_num < 3){
-                goto err;
-        }
-        if(decrypted_keybag_num < (keybag_num - 3)){
-                goto err;
-        }
+    /* Sanity checks */
+    if((pet_pin == NULL) || (keybag == NULL) || (decrypted_keybag == NULL)) {
+        printf("one of pet_pin, keyback, decrypted_keybag is null\n");
+        goto err;
+    }
+    /* Sanity checks on lengths 
+     * A Keybag contains at least an IV, a salt and a HMAC tag
+     */
+    if(keybag_num < 3) {
+        printf("keybag_num is %d\n", keybag_num);
+        goto err;
+    }
+    if(decrypted_keybag_num < (keybag_num - 3)) {
+        printf("decrypted_keybag_num is %d\n", decrypted_keybag_num);
+        goto err;
+    }
 
-        platform_iv = keybag[0].data;
-        platform_iv_len = keybag[0].size;
-        platform_salt = keybag[1].data;
-        platform_salt_len = keybag[1].size;
-        platform_hmac_tag = keybag[2].data;
-        platform_hmac_tag_len = keybag[2].size;
-        /* First of all, we derive our decryption and HMAC keys
-         * from the PET PIN using PBKDF2.
-         */
-        pbkdf_len = sizeof(pbkdf);
-        if(hmac_pbkdf2(SHA512, (unsigned char*)pet_pin, pet_pin_len, platform_salt, platform_salt_len, pbkdf2_iterations, SHA512_DIGEST_SIZE, pbkdf, &pbkdf_len)){
-                goto err;
-        }
+    platform_iv = keybag[0].data;
+    platform_iv_len = keybag[0].size;
+    platform_salt = keybag[1].data;
+    platform_salt_len = keybag[1].size;
+    platform_hmac_tag = keybag[2].data;
+    platform_hmac_tag_len = keybag[2].size;
+    /* First of all, we derive our decryption and HMAC keys
+     * from the PET PIN using PBKDF2.
+     */
+    printf("sending hmac_pbkdf2\n");
+    pbkdf_len = sizeof(pbkdf);
+    if(hmac_pbkdf2(SHA512, (unsigned char*)pet_pin, pet_pin_len, platform_salt, platform_salt_len, pbkdf2_iterations, SHA512_DIGEST_SIZE, pbkdf, &pbkdf_len))
+    {
+        goto err;
+    }
 
-	/* Once we have derived our PBKDF2 key, we ask the token for the decryption key */
-	/* Sanity check: the secure channel must not be already negotiated */
-	if((channel == NULL) || (channel->secure_channel == 1)){
-		goto err;
-	}
-	apdu.cla = 0x00; apdu.ins = TOKEN_INS_DERIVE_LOCAL_PET_KEY; apdu.p1 = 0x00; apdu.p2 = 0x00; 
-	apdu.lc = SHA512_DIGEST_SIZE; apdu.le = SHA512_DIGEST_SIZE; apdu.send_le = 1;
-	memcpy(apdu.data, pbkdf, pbkdf_len);
-	if(token_send_receive(channel, &apdu, &resp)){
-		goto err;
-	}
-	
-	/******* Smartcard response ***********************************/
-	if((resp.sw1 != (TOKEN_RESP_OK >> 8)) || (resp.sw2 != (TOKEN_RESP_OK & 0xff))){
-		/* The smartcard responded an error */
-		goto err;
-	}
-	if(resp.le != SHA512_DIGEST_SIZE){
-		/* Bad response lenght */
-		goto err;
-	}
-	memcpy(token_key, resp.data, SHA512_DIGEST_SIZE);
+    /* Once we have derived our PBKDF2 key, we ask the token for the decryption key */
+    /* Sanity check: the secure channel must not be already negotiated */
+    if((channel == NULL) || (channel->secure_channel == 1)) {
+        printf("channel == NULL\n");
+        goto err;
+    }
+    apdu.cla = 0x00; apdu.ins = TOKEN_INS_DERIVE_LOCAL_PET_KEY; apdu.p1 = 0x00; apdu.p2 = 0x00; 
+    apdu.lc = SHA512_DIGEST_SIZE; apdu.le = SHA512_DIGEST_SIZE; apdu.send_le = 1;
+    memcpy(apdu.data, pbkdf, pbkdf_len);
+    printf("sending to token\n");
+    if(token_send_receive(channel, &apdu, &resp)) {
+        printf("token send received fail\n");
+        goto err;
+    }
 
-        /* First, we check the HMAC value, the HMAC key is the 256 right most bits of
-         * the PBKDF2 value.
-         */
-        if(hmac_init(&hmac_ctx, token_key+32, SHA256_DIGEST_SIZE, SHA256)){
-                goto err;
-        }
-        hmac_update(&hmac_ctx, platform_iv, platform_iv_len);
-        hmac_update(&hmac_ctx, platform_salt, platform_salt_len);
-        for(i = 0; i < (keybag_num - 3); i++){
-                hmac_update(&hmac_ctx, keybag[i+3].data, keybag[i+3].size);
-        }
-        if(hmac_finalize(&hmac_ctx, hmac, &hmac_len)){
-                goto err;
-        }
-        /* Check the HMAC tag and return an error if there is an issue */
-        if((hmac_len != SHA256_DIGEST_SIZE) || (platform_hmac_tag_len != SHA256_DIGEST_SIZE)){
-                goto err;
-        }
-        if(!are_equal(hmac, platform_hmac_tag, hmac_len)){
-                goto err;
-        }
-        /* HMAC is OK, we can decrypt our data */
+    /******* Smartcard response ***********************************/
+    if((resp.sw1 != (TOKEN_RESP_OK >> 8)) || (resp.sw2 != (TOKEN_RESP_OK & 0xff))) {
+        /* The smartcard responded an error */
+        printf("token response fails\n");
+        goto err;
+    }
+    if(resp.le != SHA512_DIGEST_SIZE) {
+        /* Bad response lenght */
+        printf("bad response length\n");
+        goto err;
+    }
+    memcpy(token_key, resp.data, SHA512_DIGEST_SIZE);
+
+    /* First, we check the HMAC value, the HMAC key is the 256 right most bits of
+     * the PBKDF2 value.
+     */
+    if(hmac_init(&hmac_ctx, token_key+32, SHA256_DIGEST_SIZE, SHA256))
+    {
+        printf("hmac init error\n");
+        goto err;
+    }
+    printf("hmac init OK\n");
+    hmac_update(&hmac_ctx, platform_iv, platform_iv_len);
+    hmac_update(&hmac_ctx, platform_salt, platform_salt_len);
+    for(i = 0; i < (keybag_num - 3); i++){
+        hmac_update(&hmac_ctx, keybag[i+3].data, keybag[i+3].size);
+    }
+    if(hmac_finalize(&hmac_ctx, hmac, &hmac_len))
+    {
+        goto err;
+    }
+    printf("hmac final OK\n");
+    /* Check the HMAC tag and return an error if there is an issue */
+    if((hmac_len != SHA256_DIGEST_SIZE) || (platform_hmac_tag_len != SHA256_DIGEST_SIZE)){
+        goto err;
+    }
+    if(!are_equal(hmac, platform_hmac_tag, hmac_len)){
+        goto err;
+    }
+    printf("hmac equal OK\n");
+    /* HMAC is OK, we can decrypt our data */
 #if defined(__arm__)
-        /* Use the protected masked AES ofr the platform keys decryption */
-        /* [RB] FIXME: use a 256-bit AES when the masked implementation is ready to handle it */
-        if(aes_init(&aes_context, token_key, AES128, platform_iv, CTR, AES_DECRYPT, PROTECTED_AES, NULL, NULL, -1, -1)){
+    /* Use the protected masked AES ofr the platform keys decryption */
+    /* [RB] FIXME: use a 256-bit AES when the masked implementation is ready to handle it */
+    if(aes_init(&aes_context, token_key, AES128, platform_iv, CTR, AES_DECRYPT, PROTECTED_AES, NULL, NULL, -1, -1)){
 #else
         /* [RB] NOTE: if not on our ARM target, we use regular portable implementation for simulations */
-        if(aes_init(&aes_context, token_key, AES128, platform_iv, CTR, AES_DECRYPT, AES_SOFT_MBEDTLS, NULL, NULL, -1, -1)){
+    if(aes_init(&aes_context, token_key, AES128, platform_iv, CTR, AES_DECRYPT, AES_SOFT_MBEDTLS, NULL, NULL, -1, -1)){
 #endif
-                goto err;
+        goto err;
+    }
+    printf("aes init OK\n");
+    /* Decrypt all our data encapsulated in the keybag */
+    for(i = 0; i < (keybag_num - 3); i++){
+        if(keybag[i+3].size < decrypted_keybag[i].size){
+            printf("overflow: %d, %d", keybag[i+3].size, decrypted_keybag[i].size);
+            goto err;
         }
-        /* Decrypt all our data encapsulated in the keybag */
-        for(i = 0; i < (keybag_num - 3); i++){
-		if(keybag[i+3].size < decrypted_keybag[i].size){
-			goto err;
-		}
-		decrypted_keybag[i].size = keybag[i+3].size;
-                if(aes(&aes_context, keybag[i+3].data, decrypted_keybag[i].data, keybag[i+3].size, -1, -1)){
-                        goto err;
-                }
+        decrypted_keybag[i].size = keybag[i+3].size;
+        if(aes(&aes_context, keybag[i+3].data, decrypted_keybag[i].data, keybag[i+3].size, -1, -1)){
+            goto err;
         }
+    }
+    printf("aes OK\n");
 
-	/* Erase the token key */
-	memset(token_key, 0, sizeof(token_key));
+    /* Erase the token key */
+    memset(token_key, 0, sizeof(token_key));
 
-	/* Copy the PBKDF2 iterations, the platform salt and the platform salt length in the secure channel context since
-	 * we will need it later.
-	 */
-	if(platform_salt_len > sizeof(channel->platform_salt)){
-		goto err;
-	}
-	channel->pbkdf2_iterations = pbkdf2_iterations;
-	channel->platform_salt_len = platform_salt_len;
-	memcpy(channel->platform_salt, platform_salt, platform_salt_len);
+    /* Copy the PBKDF2 iterations, the platform salt and the platform salt length in the secure channel context since
+     * we will need it later.
+     */
+    if(platform_salt_len > sizeof(channel->platform_salt)){
+        goto err;
+    }
+    channel->pbkdf2_iterations = pbkdf2_iterations;
+    channel->platform_salt_len = platform_salt_len;
+    memcpy(channel->platform_salt, platform_salt, platform_salt_len);
 
-        return 0;
+    return 0;
 
 err:
-	/* Erase the token key */
-	memset(token_key, 0, sizeof(token_key));
-        return -1;
+    /* Erase the token key */
+    memset(token_key, 0, sizeof(token_key));
+    return -1;
 }
 
 /* Secure channel negotiation:
@@ -1310,7 +1330,7 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 				}
 				if(!pin_ok){
 					printf("[Token] PET PIN is NOT OK, remaining tries = %d\n", remaining_tries);
-					if(callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE)){
+					if (callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE)) {
 						goto err;
 					}
 				}
