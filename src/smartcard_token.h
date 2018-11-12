@@ -28,6 +28,13 @@ typedef struct {
         uint8_t AES_key[16];
         /* HMAC SHA-256 secret key */
         uint8_t HMAC_key[32];
+	/*********************/
+	/* PBKDF2 iterations */
+	uint32_t pbkdf2_iterations;
+	/* Platform salt */
+	uint8_t platform_salt[32];
+	/* Platform salt length */
+	uint32_t platform_salt_len;
 } token_channel;
 
 typedef enum {
@@ -52,18 +59,52 @@ enum token_instructions {
         TOKEN_INS_SET_USER_PIN = 0x03,
         TOKEN_INS_SET_PET_PIN = 0x04,
         TOKEN_INS_SET_PET_NAME = 0x05,
-        TOKEN_INS_LOCK = 0x06,
-        TOKEN_INS_GET_PET_NAME = 0x07,
-        TOKEN_INS_GET_RANDOM = 0x08,
-	TOKEN_INS_DERIVE_LOCAL_PET_KEY = 0x09,
+        TOKEN_INS_USER_PIN_LOCK = 0x06,
+        TOKEN_INS_FULL_LOCK = 0x07,
+        TOKEN_INS_GET_PET_NAME = 0x08,
+        TOKEN_INS_GET_RANDOM = 0x09,
+	TOKEN_INS_DERIVE_LOCAL_PET_KEY = 0x0a,
         /* FIXME: To be removed, for debug purpose only */
-        TOKEN_INS_ECHO_TEST = 0x0a,
-        TOKEN_INS_SECURE_CHANNEL_ECHO = 0x0b,
+        TOKEN_INS_ECHO_TEST = 0x0b,
+        TOKEN_INS_SECURE_CHANNEL_ECHO = 0x0c,
 };
 
 enum token_responses {
         TOKEN_RESP_OK = 0x9000,
 };
+
+
+/* Callbacks */
+typedef enum {
+	TOKEN_PIN_AUTHENTICATE = 0,
+	TOKEN_PIN_MODIFY = 1,
+} token_pin_actions;
+
+typedef int (*cb_token_ask_pin_t)(char *pin, unsigned int *pin_len, token_pin_types pin_type, token_pin_actions action);
+typedef int (*cb_token_confirm_pin_t)(uint8_t ok, token_pin_types pin_type, token_pin_actions action);
+typedef int (*cb_token_ask_pet_name_t)(char *pet_name, unsigned int *pet_name_len);
+typedef int (*cb_token_confirm_pet_name_t)(const char *pet_name, unsigned int pet_name_len);
+
+typedef struct {
+	cb_token_ask_pin_t ask_pin;
+	cb_token_confirm_pin_t confirm_pin;
+	cb_token_ask_pet_name_t ask_pet_name;
+	cb_token_confirm_pet_name_t confirm_pet_name;
+} cb_token_callbacks;
+
+typedef enum {
+	TOKEN_UNLOCK_INIT_TOKEN               = 0,
+	TOKEN_UNLOCK_ESTABLISH_SECURE_CHANNEL = 1,
+	TOKEN_UNLOCK_ASK_PET_PIN              = 2,
+	TOKEN_UNLOCK_PRESENT_PET_PIN          = 3,
+	TOKEN_UNLOCK_ASK_USER_PIN             = 4,
+	TOKEN_UNLOCK_PRESENT_USER_PIN         = 5,
+	TOKEN_UNLOCK_CONFIRM_PET_NAME         = 6,
+	TOKEN_UNLOCK_CHANGE_PET_PIN           = 7,
+	TOKEN_UNLOCK_CHANGE_USER_PIN          = 8,
+	TOKEN_UNLOCK_CHANGE_PET_NAME          = 9,
+} token_unlock_operations;
+
 
 /* We define here the type of AES we use to protect the channel to
  * communicate with the token.
@@ -98,6 +139,12 @@ int token_early_init(void);
 /* High level functions to communicate with the token */
 int token_init(token_channel *channel);
 
+void token_zeroize_channel(token_channel *channel);
+
+void token_zeroize_secure_channel(token_channel *channel);
+
+void token_zeroize_databag(databag *databag, unsigned int databag_size);
+
 int token_early_init();
 
 int token_select_applet(token_channel *channel, const unsigned char *aid, unsigned int aid_len);
@@ -112,10 +159,14 @@ int token_send_pin(token_channel *channel, const char *pin, unsigned int pin_len
 
 int token_get_pet_name(token_channel *channel, char *pet_name, unsigned int *pet_name_length);
 
-int token_set_pet_name(token_channel *channel, char *pet_name, unsigned int pet_name_length);
+int token_set_pet_name(token_channel *channel, const char *pet_name, unsigned int pet_name_length);
 
-int token_change_pin(token_channel *channel, const char *pin, unsigned int pin_len, token_pin_types pin_type, const databag *keybag, uint32_t keybag_num, uint32_t pbkdf2_iterations);
+int token_change_pin(token_channel *channel, const char *pin, unsigned int pin_len, token_pin_types pin_type);
 
-int token_lock(token_channel *channel);
+int token_user_pin_lock(token_channel *channel);
+
+int token_full_lock(token_channel *channel);
+
+int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AID, unsigned int applet_AID_len, const databag *keybag, uint32_t keybag_num, uint32_t pbkdf2_iterations, ec_curve_type curve_type, token_unlock_operations *op, uint32_t num_ops, cb_token_callbacks *callbacks, unsigned char *decrypted_sig_pub_key_data, unsigned int *decrypted_sig_pub_key_data_len);
 
 #endif /* __SMARTCARD_TOKEN_H__ */

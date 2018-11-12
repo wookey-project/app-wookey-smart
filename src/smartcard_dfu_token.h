@@ -15,9 +15,8 @@ enum dfu_token_instructions {
 int dfu_token_begin_decrypt_session(token_channel *channel, const unsigned char *iv, uint32_t iv_len, const unsigned char *iv_hmac, uint32_t iv_hmac_len);
 int dfu_token_derive_key(token_channel *channel, unsigned char *derived_key, uint32_t derived_key_len);
 
-/* Callbacks */
-typedef int (*cb_dfu_token_ask_pet_pin_t)(char *pet_pin, unsigned int *pet_pin_len);
-typedef int (*cb_dfu_token_ask_user_pin_t)(char *pet_name, unsigned int pet_name_len, char *user_pin, unsigned int *use_pin_len);
-int dfu_token_exchanges(token_channel *channel, cb_dfu_token_ask_pet_pin_t ask_pet_pin, cb_dfu_token_ask_user_pin_t ask_user_pin);
+int dfu_token_unlock_ops_exec(token_channel *channel, token_unlock_operations *ops, uint32_t num_ops, cb_token_callbacks *callbacks, unsigned char *decrypted_sig_pub_key_data, unsigned int *decrypted_sig_pub_key_data_len);
+
+int dfu_token_exchanges(token_channel *channel, cb_token_callbacks *callbacks, unsigned char *decrypted_sig_pub_key_data, unsigned int *decrypted_sig_pub_key_data_len);
 
 #endif /* __SMARTCARD_DFU_TOKEN_H__ */
