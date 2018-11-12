@@ -188,7 +188,7 @@ err:
  * We use an ECDH with mutual authentication in order to derive our session key and IV.
  */
 /* [RB] FIXME: clean the sensitive values when they are no more used ... */
-static int token_negotiate_secure_channel(token_channel *channel, const unsigned char *decrypted_platform_priv_key_data, uint32_t decrypted_platform_priv_key_data_len, const unsigned char *decrypted_platform_pub_key_data, uint32_t decrypted_platform_pub_key_data_len, const unsigned char *decrypted_token_pub_key_data, uint32_t decrypted_token_pub_key_data_len, ec_curve_type curve_type){
+static int token_negotiate_secure_channel(token_channel *channel, const unsigned char *decrypted_platform_priv_key_data, uint32_t decrypted_platform_priv_key_data_len, const unsigned char *decrypted_platform_pub_key_data, uint32_t decrypted_platform_pub_key_data_len, const unsigned char *decrypted_token_pub_key_data, uint32_t decrypted_token_pub_key_data_len, ec_curve_type curve_type, unsigned int *remaining_tries){
 	SC_APDU_cmd apdu;
 	SC_APDU_resp resp;
 	/* Our ECDSA key pair */
@@ -338,6 +338,10 @@ static int token_negotiate_secure_channel(token_channel *channel, const unsigned
 	/******* Smartcard response ***********************************/
 	if((resp.sw1 != (TOKEN_RESP_OK >> 8)) || (resp.sw2 != (TOKEN_RESP_OK & 0xff))){
 		/* The smartcard responded an error */
+		if((resp.sw1 == TOKEN_INS_SECURE_CHANNEL_INIT) && (resp.sw2 == 0x00) && (resp.le == 2)){
+			/* Get the remaining tries */
+			*remaining_tries = (resp.data[0] << 8) | resp.data[1];
+		}
 		goto err;
 	}
 	if(resp.le != ((3 * BYTECEIL(curve_params.ec_fp.p_bitlen)) + (uint32_t)siglen)){
@@ -1063,7 +1067,7 @@ err:
 	return -1;
 }
 
-int token_secure_channel_init(token_channel *channel, const unsigned char *decrypted_platform_priv_key_data, uint32_t decrypted_platform_priv_key_data_len, const unsigned char *decrypted_platform_pub_key_data, uint32_t decrypted_platform_pub_key_data_len, const unsigned char *decrypted_token_pub_key_data, uint32_t decrypted_token_pub_key_data_len, ec_curve_type curve_type){
+int token_secure_channel_init(token_channel *channel, const unsigned char *decrypted_platform_priv_key_data, uint32_t decrypted_platform_priv_key_data_len, const unsigned char *decrypted_platform_pub_key_data, uint32_t decrypted_platform_pub_key_data_len, const unsigned char *decrypted_token_pub_key_data, uint32_t decrypted_token_pub_key_data_len, ec_curve_type curve_type, unsigned int *remaining_tries){
 
 	if(channel == NULL){
 		goto err;
@@ -1071,7 +1075,7 @@ int token_secure_channel_init(token_channel *channel, const unsigned char *decry
 	/* [RB] NOTE: the rest of the sanity checks on the pointers should be performed by the lower
 	 * functions.
 	 */
-	if(token_negotiate_secure_channel(channel, decrypted_platform_priv_key_data, decrypted_platform_priv_key_data_len, decrypted_platform_pub_key_data, decrypted_platform_pub_key_data_len, decrypted_token_pub_key_data, decrypted_token_pub_key_data_len, curve_type)){
+	if(token_negotiate_secure_channel(channel, decrypted_platform_priv_key_data, decrypted_platform_priv_key_data_len, decrypted_platform_pub_key_data, decrypted_platform_pub_key_data_len, decrypted_token_pub_key_data, decrypted_token_pub_key_data_len, curve_type, remaining_tries)){
 		goto err;
 	}
 	return 0;
@@ -1271,8 +1275,9 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			        sys_get_systick(&start_secure_channel, PREC_MILLI);
 #endif
 
+				unsigned int remaining_tries = 0;
 			        /* Initialize the secure channel with the token */
-			        if(token_secure_channel_init(channel, decrypted_platform_priv_key_data, sizeof(decrypted_platform_priv_key_data), decrypted_platform_pub_key_data, sizeof(decrypted_platform_pub_key_data), decrypted_token_pub_key_data, sizeof(decrypted_token_pub_key_data), curve_type)){		
+			        if(token_secure_channel_init(channel, decrypted_platform_priv_key_data, sizeof(decrypted_platform_priv_key_data), decrypted_platform_pub_key_data, sizeof(decrypted_platform_pub_key_data), decrypted_token_pub_key_data, sizeof(decrypted_token_pub_key_data), curve_type, &remaining_tries)){
 			                /* Erase the decrypted platform keys, we don't need them anymore! */
 					token_zeroize_databag(decrypted_keybag, sizeof(decrypted_keybag)/sizeof(databag));
 			                printf("[XX] [Token] Secure channel negotiation error ...\n");
