@@ -216,7 +216,7 @@ static int token_negotiate_secure_channel(token_channel *channel, const unsigned
 	uint8_t digest[SHA256_DIGEST_SIZE];
 
 	/* Sanity checks */
-	if((channel == NULL) || (decrypted_platform_priv_key_data == NULL) || (decrypted_platform_pub_key_data == NULL) || (decrypted_token_pub_key_data == NULL)){
+	if((channel == NULL) || (decrypted_platform_priv_key_data == NULL) || (decrypted_platform_pub_key_data == NULL) || (decrypted_token_pub_key_data == NULL) || (remaining_tries == NULL)){
 		goto err;
 	}
 
@@ -940,6 +940,11 @@ int token_change_pin(token_channel *channel, const char *pin, unsigned int pin_l
 		/* The smartcard responded an error */
 		goto err;
 	}
+
+	/* Update our AES and HMAC sessions keys with information derived from the
+	 * PIN: a SHA-256 hash of the PIN concatenated with the IV.
+	 */
+	token_channel_session_keys_update(channel, padded_pin, sizeof(padded_pin), 1);
 
 	return 0;
 err:
