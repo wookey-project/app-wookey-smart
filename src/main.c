@@ -475,50 +475,47 @@ int _main(uint32_t task_id)
                           continue;
                         }
                          */
-                        /* set the new user pin. The CRYPTO_AUTH_CMD must have been passed and the channel being unlocked */
-                        printf("updated user pin to %s (len %d) in smartcard\n", ipc_sync_cmd_data.data.u8, ipc_sync_cmd_data.data_size);
+                        if (   ipc_sync_cmd_data.data.req.sc_type == SC_PET_PIN
+                            && ipc_sync_cmd_data.data.req.sc_req  == SC_REQ_MODIFY) {
+                            /* set the new pet pin. The CRYPTO_AUTH_CMD must have been passed and the channel being unlocked */
+                            printf("PIN require a Pet Pin update\n");
 
-		        token_unlock_operations ops[] = { TOKEN_UNLOCK_PRESENT_USER_PIN, TOKEN_UNLOCK_CHANGE_USER_PIN };
-		        if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks)){
-                        	printf("Unable to change user pin !!!\n");
-				goto err;
-			}
+                            token_unlock_operations ops[] = { TOKEN_UNLOCK_PRESENT_USER_PIN, TOKEN_UNLOCK_CHANGE_PET_PIN };
+                            if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks)){
+                                printf("Unable to change pet pin !!!\n");
+                                goto err;
+                            }
+                            printf("New pet pin registered\n");
+                        } else if (   ipc_sync_cmd_data.data.req.sc_type == SC_USER_PIN
+                                   && ipc_sync_cmd_data.data.req.sc_req  == SC_REQ_MODIFY) {
+                            /* set the new pet pin. The CRYPTO_AUTH_CMD must have been passed and the channel being unlocked */
+                            printf("PIN require a User Pin update\n");
 
-                        break;
-                    }
+                            token_unlock_operations ops[] = { TOKEN_UNLOCK_PRESENT_USER_PIN, TOKEN_UNLOCK_CHANGE_USER_PIN };
+                            if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks)){
+                                printf("Unable to change user pin !!!\n");
+                                goto err;
+                            }
+                            printf("New user pin registered\n");
+                        } else if (   ipc_sync_cmd_data.data.req.sc_type == SC_PET_NAME
+                                   && ipc_sync_cmd_data.data.req.sc_req  == SC_REQ_MODIFY) {
+                            /* set the new pet pin. The CRYPTO_AUTH_CMD must have been passed and the channel being unlocked */
+                            printf("PIN require a Pet Name update\n");
 
-#if 0
-                /********* set pet pin into smartcard *******/
-                case MAGIC_SETTINGS_SET_PETPIN:
-                    {
-                        printf("updated pet pin to %s (len %d) in smartcard\n", ipc_sync_cmd_data.data.u8, ipc_sync_cmd_data.data_size);
-
-		        token_unlock_operations ops[] = { TOKEN_UNLOCK_PRESENT_USER_PIN, TOKEN_UNLOCK_CHANGE_PET_PIN };
-		        if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks)){
-                        	printf("Unable to change pet pin !!!\n");
-				goto err;
-			}
-
-                        break;
-                    }
-
-                /********* set pet pin into smartcard *******/
-                case MAGIC_SETTINGS_SET_PETNAME:
-                    {
-                        printf("updated pet name to %s (len %d) in smartcard\n", ipc_sync_cmd_data.data.u8, ipc_sync_cmd_data.data_size);
-
-#if 0
-                        if (token_set_pet_name(&curr_token_channel, (const char*)ipc_sync_cmd_data.data.u8, ipc_sync_cmd_data.data_size))
-                        {
-                            printf("Unable to change PET name !!!\n");
-                            goto err;
+                            token_unlock_operations ops[] = { TOKEN_UNLOCK_PRESENT_USER_PIN, TOKEN_UNLOCK_CHANGE_PET_NAME };
+                            if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks)){
+                                printf("Unable to change pet name !!!\n");
+                                goto err;
+                            }
+                            printf("New pet name registered\n");
+                        } else {
+                            printf("Invalid PIN command bag : sc_type = %d, sc_req = %d!\n",
+                                    ipc_sync_cmd_data.data.req.sc_type,
+                                    ipc_sync_cmd_data.data.req.sc_req);
                         }
-#endif
-
                         break;
                     }
 
-#endif
                 /********* lock the device (by rebooting) ***/
                 case MAGIC_SETTINGS_LOCK:
                     {
