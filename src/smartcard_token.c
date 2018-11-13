@@ -1299,7 +1299,7 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			        pet_pin_len = sizeof(pet_pin);
 			        if(callbacks->request_pin(pet_pin, &pet_pin_len, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE)){
 				        printf("[Pet Pin] Failed to ask for pet pin!\n");
-					callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE);
+					callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE, 0);
 		                	goto err;
         			}
 				got_pet_pin = 1;
@@ -1308,7 +1308,7 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			/****************************************************************/
 			case TOKEN_UNLOCK_PRESENT_PET_PIN:{
 				uint8_t pin_ok;
-				unsigned int remaining_tries;
+				unsigned int remaining_tries = 0;
 				if((callbacks == NULL) || (callbacks->request_pin == NULL) || (callbacks->acknowledge_pin == NULL)){
 					goto err;
 				}
@@ -1318,24 +1318,24 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			        	pet_pin_len = sizeof(pet_pin);
 				        if(callbacks->request_pin(pet_pin, &pet_pin_len, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE)){
 					        printf("[Pet Pin] Failed to ask for pet pin!\n");
-						callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE);	
+						callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE, remaining_tries);	
 		        	        	goto err;
         				}
 				}
 				/* Send the PIN to token */
 				if(token_send_pin(channel, pet_pin, pet_pin_len, &pin_ok, &remaining_tries, TOKEN_PET_PIN)){
 					printf("[Token] Error sending PET pin\n");
-					callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE);	
+					callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE, remaining_tries);	
 					goto err;
 				}
 				if(!pin_ok){
 					printf("[Token] PET PIN is NOT OK, remaining tries = %d\n", remaining_tries);
-					if (callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE)) {
+					if (callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE, remaining_tries)) {
 						goto err;
 					}
 				}
 				else{
-					if(callbacks->acknowledge_pin(TOKEN_ACK_VALID, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE)){
+					if(callbacks->acknowledge_pin(TOKEN_ACK_VALID, TOKEN_PET_PIN, TOKEN_PIN_AUTHENTICATE, remaining_tries)){
 						goto err;
 					}
 				}
@@ -1351,7 +1351,7 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			        user_pin_len = sizeof(user_pin);
 			        if(callbacks->request_pin(user_pin, &user_pin_len, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE)){
 				        printf("[User Pin] Failed to ask for pet pin!\n");
-					callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE);	
+					callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE, 0);	
 		                	goto err;
         			}
 				got_user_pin = 1;
@@ -1360,7 +1360,7 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			/****************************************************************/
 			case TOKEN_UNLOCK_PRESENT_USER_PIN:{
 				uint8_t pin_ok;
-				unsigned int remaining_tries;
+				unsigned int remaining_tries = 0;
 				if((callbacks == NULL) || (callbacks->request_pin == NULL) || (callbacks->acknowledge_pin == NULL)){
 					goto err;
 				}
@@ -1373,24 +1373,24 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			        	user_pin_len = sizeof(user_pin);
 				        if(callbacks->request_pin(user_pin, &user_pin_len, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE)){
 					        printf("[User Pin] Failed to ask for user pin!\n");
-						callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE);	
+						callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE, 0);	
 		        	        	goto err;
         				}
 				}
 				/* Send the PIN to token */
 				if(token_send_pin(channel, user_pin, user_pin_len, &pin_ok, &remaining_tries, TOKEN_USER_PIN)){
 					printf("[Token] Error sending user pin\n");
-					callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE);	
+					callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE, remaining_tries);	
 					goto err;
 				}
 				if(!pin_ok){
 					printf("[Token] user PIN is NOT OK, remaining tries = %d\n", remaining_tries);
-					if(callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE)){
+					if(callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE, remaining_tries)){
 						goto err;
 					}
 				}
 				else{
-					if(callbacks->acknowledge_pin(TOKEN_ACK_VALID, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE)){
+					if(callbacks->acknowledge_pin(TOKEN_ACK_VALID, TOKEN_USER_PIN, TOKEN_PIN_AUTHENTICATE, remaining_tries)){
 						goto err;
 					}
 				}
@@ -1422,14 +1422,14 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			        pet_pin_len = sizeof(pet_pin);
 			        if(callbacks->request_pin(pet_pin, &pet_pin_len, TOKEN_PET_PIN, TOKEN_PIN_MODIFY)){
 				        printf("[Pet Pin] Failed to ask for the NEW pet pin!\n");
-					callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_PET_PIN, TOKEN_PIN_MODIFY);
+					callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_PET_PIN, TOKEN_PIN_MODIFY, 0);
 		                	goto err;
         			}
 				/* Modify the pet pin */
 				if(token_change_pin(channel, pet_pin, pet_pin_len, TOKEN_PET_PIN)){
 					goto err;
 				}
-				callbacks->acknowledge_pin(TOKEN_ACK_VALID, TOKEN_PET_PIN, TOKEN_PIN_MODIFY);
+				callbacks->acknowledge_pin(TOKEN_ACK_VALID, TOKEN_PET_PIN, TOKEN_PIN_MODIFY, 0);
 				break;
 			}
 			/****************************************************************/
@@ -1441,14 +1441,14 @@ int token_unlock_ops_exec(token_channel *channel, const unsigned char *applet_AI
 			        user_pin_len = sizeof(user_pin);
 			        if(callbacks->request_pin(user_pin, &user_pin_len, TOKEN_USER_PIN, TOKEN_PIN_MODIFY)){
 				        printf("[User Pin] Failed to ask for the NEW user pin!\n");
-					callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_USER_PIN, TOKEN_PIN_MODIFY);
+					callbacks->acknowledge_pin(TOKEN_ACK_INVALID, TOKEN_USER_PIN, TOKEN_PIN_MODIFY, 0);
 		                	goto err;
         			}
 				/* Modify the pet pin */
 				if(token_change_pin(channel, user_pin, user_pin_len, TOKEN_USER_PIN)){
 					goto err;
 				}
-				callbacks->acknowledge_pin(TOKEN_ACK_VALID, TOKEN_USER_PIN, TOKEN_PIN_MODIFY);
+				callbacks->acknowledge_pin(TOKEN_ACK_VALID, TOKEN_USER_PIN, TOKEN_PIN_MODIFY, 0);
 				break;
 			}
 			/****************************************************************/

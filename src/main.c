@@ -84,13 +84,16 @@ err:
     return -1;
 }
 
-int auth_token_acknowledge_pin(token_ack_state ack, token_pin_types pin_type, token_pin_actions action)
+int auth_token_acknowledge_pin(token_ack_state ack, token_pin_types pin_type, token_pin_actions action, uint32_t remaining_tries)
 {
-    struct sync_command      ipc_sync_cmd = { 0 };
+    struct sync_command_data   ipc_sync_cmd = { 0 };
     uint8_t ret;
 
     if(action == TOKEN_PIN_AUTHENTICATE){
         printf("Request PIN for authentication\n");
+        /* int acknowledge of authentication, returning remaining tries */
+        ipc_sync_cmd.data.u32[0] = remaining_tries;
+        ipc_sync_cmd.data_size = 4;
     }
     else if (action == TOKEN_PIN_MODIFY){
         printf("Request PIN for modification\n");
@@ -111,7 +114,7 @@ int auth_token_acknowledge_pin(token_ack_state ack, token_pin_types pin_type, to
     	ipc_sync_cmd.state = SYNC_FAILURE;
     }
     do {
-        ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+        ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd);
     } while (ret == SYS_E_BUSY);
 
 	return 0;
@@ -452,20 +455,6 @@ int _main(uint32_t task_id)
              * Managing Pin task IPC
              ******************************/
             switch (ipc_sync_cmd_data.magic) {
-                /********* full authentication request *******/
-                case MAGIC_CRYPTO_AUTH_CMD:
-                    {
-                        /* Here Pin is requesting a complete
-                         * authentication phase with the token */
-		        token_unlock_operations ops[] = { TOKEN_UNLOCK_ASK_PET_PIN, TOKEN_UNLOCK_ESTABLISH_SECURE_CHANNEL, TOKEN_UNLOCK_PRESENT_PET_PIN, TOKEN_UNLOCK_CONFIRM_PET_NAME, TOKEN_UNLOCK_PRESENT_USER_PIN };
-		        if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks)){
-				goto err;
-			}
-                        // channel_state = CHAN_UNLOCKED; /* token_lock() set this var to CHAN_LOCKED */
-
-                        break;
-                    }
-
                 /********* set user pin into smartcard *******/
                 case MAGIC_SETTINGS_CMD:
                     {
