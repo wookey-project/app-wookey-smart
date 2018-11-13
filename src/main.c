@@ -11,7 +11,7 @@
 #include "smartcard_auth_token.h"
 #include "smartcard_dfu_token.h"
 #include "aes.h"
-#include "ipc_proto.h"
+#include "wookey_ipc.h"
 #include "autoconf.h"
 
 #define SMART_DEBUG 1
@@ -90,13 +90,13 @@ int auth_token_acknowledge_pin(token_ack_state ack, token_pin_types pin_type, to
     uint8_t ret;
 
     if(action == TOKEN_PIN_AUTHENTICATE){
-        printf("Request PIN for authentication\n");
+        printf("acknowledge authentication PIN\n");
         /* int acknowledge of authentication, returning remaining tries */
         ipc_sync_cmd.data.u32[0] = remaining_tries;
         ipc_sync_cmd.data_size = 4;
     }
     else if (action == TOKEN_PIN_MODIFY){
-        printf("Request PIN for modification\n");
+        printf("acknowledge modification PIN\n");
     }
     else{
         goto err;
@@ -113,10 +113,18 @@ int auth_token_acknowledge_pin(token_ack_state ack, token_pin_types pin_type, to
     } else{
     	ipc_sync_cmd.state = SYNC_FAILURE;
     }
-    do {
+    //do {
         ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd);
-    } while (ret == SYS_E_BUSY);
+        if (ret != SYS_E_DONE) {
+            printf("unable to acknowledge!\n");
+            while (1);
+        }
+    //} while (ret == SYS_E_BUSY);
 
+    /* an invalid pin is considered as an error, we stop here, returning an error. */
+    if (ack != TOKEN_ACK_VALID) {
+        goto err;
+    }
 	return 0;
 err:
 	return -1;
@@ -472,7 +480,7 @@ int _main(uint32_t task_id)
                             token_unlock_operations ops[] = { TOKEN_UNLOCK_PRESENT_USER_PIN, TOKEN_UNLOCK_CHANGE_PET_PIN };
                             if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks)){
                                 printf("Unable to change pet pin !!!\n");
-                                goto err;
+                                continue;
                             }
                             printf("New pet pin registered\n");
                         } else if (   ipc_sync_cmd_data.data.req.sc_type == SC_USER_PIN
@@ -483,7 +491,7 @@ int _main(uint32_t task_id)
                             token_unlock_operations ops[] = { TOKEN_UNLOCK_PRESENT_USER_PIN, TOKEN_UNLOCK_CHANGE_USER_PIN };
                             if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks)){
                                 printf("Unable to change user pin !!!\n");
-                                goto err;
+                                continue;
                             }
                             printf("New user pin registered\n");
                         } else if (   ipc_sync_cmd_data.data.req.sc_type == SC_PET_NAME
@@ -494,7 +502,7 @@ int _main(uint32_t task_id)
                             token_unlock_operations ops[] = { TOKEN_UNLOCK_PRESENT_USER_PIN, TOKEN_UNLOCK_CHANGE_PET_NAME };
                             if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks)){
                                 printf("Unable to change pet name !!!\n");
-                                goto err;
+                                continue;
                             }
                             printf("New pet name registered\n");
                         } else {

@@ -4,6 +4,7 @@ config APP_SMART
   bool "Smart App"
   depends on STM32F4
   default y
+  select USR_LIB_WOOKEY
   select USR_DRV_CRYP
   ---help---
     Say y if you want to embbed SMART custom application.

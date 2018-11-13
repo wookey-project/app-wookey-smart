@@ -1,5 +1,5 @@
 #include "smartcard_auth_token.h"
-#include "ipc_proto.h"
+#include "wookey_ipc.h"
 
 /* Include our encrypted platform keys  */
 #include "AUTH/encrypted_platform_auth_keys.h"
