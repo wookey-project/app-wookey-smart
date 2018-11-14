@@ -1022,7 +1022,7 @@ int token_get_pet_name(token_channel *channel, char *pet_name, unsigned int *pet
 		goto err;
 	}
 
-	apdu.cla = 0x00; apdu.ins = TOKEN_INS_GET_PET_NAME; apdu.p1 = 0x00; apdu.p2 = 0x00; apdu.lc = 0; apdu.le = 0x00; apdu.send_le = 0;
+	apdu.cla = 0x00; apdu.ins = TOKEN_INS_GET_PET_NAME; apdu.p1 = 0x00; apdu.p2 = 0x00; apdu.lc = 0; apdu.le = 0x00; apdu.send_le = 1;
 	if(token_send_receive(channel, &apdu, &resp)){
 		goto err;
 	}
@@ -1056,8 +1056,12 @@ int token_set_pet_name(token_channel *channel, const char *pet_name, unsigned in
 	if(pet_name == NULL){
 		goto err;
 	}
+	if(pet_name_length > (SHORT_APDU_LC_MAX - SHA256_DIGEST_SIZE)){
+		goto err;
+	}
 
 	apdu.cla = 0x00; apdu.ins = TOKEN_INS_SET_PET_NAME; apdu.p1 = 0x00; apdu.p2 = 0x00; apdu.lc = pet_name_length; apdu.le = 0x00; apdu.send_le = 0;
+	memcpy(apdu.data, pet_name, pet_name_length);
 	if(token_send_receive(channel, &apdu, &resp)){
 		goto err;
 	}
