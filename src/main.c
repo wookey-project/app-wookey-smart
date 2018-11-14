@@ -132,7 +132,6 @@ err:
 
 int auth_token_request_pet_name(char *pet_name, unsigned int *pet_name_len)
 {
-    struct sync_command      ipc_sync_cmd = { 0 };
     struct sync_command_data ipc_sync_cmd_data = { 0 };
     uint8_t ret;
     uint8_t id;
@@ -146,11 +145,14 @@ int auth_token_request_pet_name(char *pet_name, unsigned int *pet_name_len)
     cmd_magic = MAGIC_CRYPTO_PIN_CMD;
     resp_magic = MAGIC_CRYPTO_PIN_RESP;
 
-    ipc_sync_cmd.magic = cmd_magic;
-    ipc_sync_cmd.state = SYNC_ASK_FOR_DATA;
+    ipc_sync_cmd_data.magic = cmd_magic;
+    ipc_sync_cmd_data.state = SYNC_ASK_FOR_DATA;
+    // TODO: set data_size please
+    ipc_sync_cmd_data.data.req.sc_type = SC_PET_NAME;
+    ipc_sync_cmd_data.data.req.sc_req = SC_REQ_MODIFY;
 
     do {
-    ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+      ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd_data);
     } while (ret == SYS_E_BUSY);
 
     /* Now wait for Acknowledge from pin */
@@ -160,8 +162,11 @@ int auth_token_request_pet_name(char *pet_name, unsigned int *pet_name_len)
     ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd_data);
     if (   ipc_sync_cmd_data.magic == resp_magic
             && ipc_sync_cmd_data.state == SYNC_DONE) {
-        printf("received pin from PIN\n");
+        printf("received pet name from PIN: %s, size: %d\n",
+                (char*)ipc_sync_cmd_data.data.u8,
+                ipc_sync_cmd_data.data_size);
         if(*pet_name_len < ipc_sync_cmd_data.data_size){
+              printf("pet name len (%d) too long !\n", ipc_sync_cmd_data.data_size);
               goto err;
         }
         memcpy(pet_name, (void*)&(ipc_sync_cmd_data.data.u8), ipc_sync_cmd_data.data_size);
