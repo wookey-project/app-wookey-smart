@@ -35,7 +35,7 @@ LDFLAGS += $(AFLAGS) -fno-builtin -nostdlib -nostartfiles -Wl,-Map=$(APP_BUILD_D
 
 EXTRA_LDFLAGS ?= -Tsmart.fw1.ld
 LDFLAGS += $(EXTRA_LDFLAGS) -L$(APP_BUILD_DIR) -fno-builtin -nostdlib --enable-objc-gc -Wl,--gc-sections
-LD_LIBS += -laes -lsign -lhmac -lcryp -lrng -lsmartcard -lusart -lstd -L$(APP_BUILD_DIR)
+LD_LIBS += -laes -lsign -lhmac -lcryp -lrng -ldrviso7816 -liso7816 -ltoken -lusart -lstd -L$(APP_BUILD_DIR)
 
 BUILD_DIR ?= $(PROJ_FILE)build
 
@@ -44,17 +44,7 @@ SRC = $(wildcard $(CSRC_DIR)/*.c)
 OBJ = $(patsubst %.c,$(APP_BUILD_DIR)/%.o,$(SRC))
 DEP = $(OBJ:.o=.d)
 
-#Rust sources files
-RSSRC_DIR=rust/src
-RSRC= $(wildcard $(RSRCDIR)/*.rs)
-ROBJ = $(patsubst %.rs,$(APP_BUILD_DIR)/rust/%.o,$(RSRC))
-
-#ada sources files
-ASRC_DIR = ada/src
-ASRC= $(wildcard $(ASRC_DIR)/*.adb)
-AOBJ = $(patsubst %.adb,$(APP_BUILD_DIR)/ada/%.o,$(ASRC))
-
-OUT_DIRS = $(dir $(DRVOBJ)) $(dir $(BOARD_OBJ)) $(dir $(SOC_OBJ)) $(dir $(CORE_OBJ)) $(dir $(AOBJ)) $(dir $(OBJ)) $(dir $(ROBJ))
+OUT_DIRS = $(dir $(OBJ))
 
 LDSCRIPT_NAME = $(APP_BUILD_DIR)/$(APP_NAME).ld
 
@@ -80,7 +70,7 @@ $(APP_BUILD_DIR)/%.o: %.c
 	$(call if_changed,cc_o_c)
 
 # ELF
-$(APP_BUILD_DIR)/$(ELF_NAME): $(ROBJ) $(OBJ) $(SOBJ) $(DRVOBJ) $(BOARD_OBJ) $(CORE_OBJ) $(SOC_OBJ) $(BUILD_DIR)/libs/libstd/libstd.a $(BUILD_DIR)/drivers/librng/librng.a $(BUILD_DIR)/drivers/libcryp/libcryp.a $(BUILD_DIR)/drivers/libusart/libusart.a $(BUILD_DIR)/drivers/libsmartcard/libsmartcard.a $(BUILD_DIR)/libs/libsign/libsign.a $(BUILD_DIR)/libs/libaes/libaes.a $(BUILD_DIR)/libs/libhmac/libhmac.a
+$(APP_BUILD_DIR)/$(ELF_NAME): $(OBJ)
 	$(call if_changed,link_o_target)
 
 # HEX
