@@ -6,6 +6,7 @@ config APP_SMART
   default y
   select USR_LIB_WOOKEY
   select USR_DRV_CRYP
+  select USR_LIB_TOKEN
   ---help---
     Say y if you want to embbed SMART custom application.
 
