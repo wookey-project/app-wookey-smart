@@ -14,7 +14,7 @@
 #include "wookey_ipc.h"
 #include "autoconf.h"
 
-#define SMART_DEBUG 1
+#define SMART_DEBUG 0
 
 token_channel curr_token_channel = { .channel_initialized = 0, .secure_channel = 0, .IV = { 0 }, .first_IV = { 0 }, .AES_key = { 0 }, .HMAC_key = { 0 }, .pbkdf2_iterations = 0, .platform_salt_len = 0 };
 uint8_t id_pin = 0;
@@ -372,7 +372,7 @@ int _main(uint32_t task_id)
         goto err;
     }
 
-#ifdef SMART_DEBUG
+#if CONFIG_SMARTCARD_DEBUG
     printf("key received:\n");
     hexdump(CBC_ESSIV_key, 32);
     printf("hash received:\n");
