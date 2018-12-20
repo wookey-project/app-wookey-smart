@@ -359,7 +359,7 @@ int _main(uint32_t task_id)
         .request_pet_name              = auth_token_request_pet_name,
         .request_pet_name_confirmation = auth_token_request_pet_name_confirmation
     };
-    if(!tokenret && auth_token_exchanges(&curr_token_channel, &auth_token_callbacks, CBC_ESSIV_key, sizeof(CBC_ESSIV_key), CBC_ESSIV_h_key, sizeof(CBC_ESSIV_h_key)))
+    if(!tokenret && auth_token_exchanges(&curr_token_channel, &auth_token_callbacks, CBC_ESSIV_key, sizeof(CBC_ESSIV_key), CBC_ESSIV_h_key, sizeof(CBC_ESSIV_h_key), NULL, 0))
     {
         goto err;
     }
@@ -483,7 +483,7 @@ int _main(uint32_t task_id)
                             printf("PIN require a Pet Pin update\n");
 
                             token_unlock_operations ops[] = { TOKEN_UNLOCK_PRESENT_USER_PIN, TOKEN_UNLOCK_CHANGE_PET_PIN };
-                            if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks)){
+                            if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks, NULL, 0)){
                                 printf("Unable to change pet pin !!!\n");
                                 continue;
                             }
@@ -494,7 +494,7 @@ int _main(uint32_t task_id)
                             printf("PIN require a User Pin update\n");
 
                             token_unlock_operations ops[] = { TOKEN_UNLOCK_PRESENT_USER_PIN, TOKEN_UNLOCK_CHANGE_USER_PIN };
-                            if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks)){
+                            if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks, NULL, 0)){
                                 printf("Unable to change user pin !!!\n");
                                 continue;
                             }
@@ -505,7 +505,7 @@ int _main(uint32_t task_id)
                             printf("PIN require a Pet Name update\n");
 
                             token_unlock_operations ops[] = { TOKEN_UNLOCK_PRESENT_USER_PIN, TOKEN_UNLOCK_CHANGE_PET_NAME };
-                            if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks)){
+                            if(auth_token_unlock_ops_exec(&curr_token_channel, ops, sizeof(ops)/sizeof(token_unlock_operations), &auth_token_callbacks, NULL, 0)){
                                 printf("Unable to change pet name !!!\n");
                                 continue;
                             }
