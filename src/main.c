@@ -453,6 +453,13 @@ int _main(uint32_t task_id)
                         break;
                     }
 #endif
+                case MAGIC_STORAGE_EJECTED:
+                    {
+                        printf("j'ai recu un RESET\n");
+                        sys_reset();
+                        while (1);
+                        break;
+                    }
 
                 case MAGIC_STORAGE_SCSI_BLOCK_NUM_RESP:
                     {
