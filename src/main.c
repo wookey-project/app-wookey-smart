@@ -226,7 +226,7 @@ void smartcard_removal_action(void){
     if((curr_token_channel.card.type != SMARTCARD_UNKNOWN) && !SC_is_smartcard_inserted(&(curr_token_channel.card))){
         SC_smartcard_lost(&(curr_token_channel.card));
         sys_reset();
-    }	
+    }
 }
 
 /*
@@ -265,7 +265,7 @@ int _main(uint32_t task_id)
     printf("pin is task %x !\n", id_pin);
 
 
-    cryp_early_init(false, CRYP_CFG, CRYP_PRODMODE, &dma_in_desc, &dma_out_desc);
+    cryp_early_init(false, CRYP_MAP_AUTO, CRYP_CFG, CRYP_PRODMODE, &dma_in_desc, &dma_out_desc);
 
     tokenret = token_early_init();
     switch (tokenret) {
@@ -327,7 +327,7 @@ int _main(uint32_t task_id)
         && ipc_sync_cmd.state == SYNC_ACKNOWLEDGE) {
         printf("crypto has acknowledge end_of_init, continuing\n");
     }
- 
+
     /*********************************************
      * Wait for crypto to ask for key injection
      *********************************************/
@@ -351,7 +351,7 @@ int _main(uint32_t task_id)
     curr_token_channel.card.type = SMARTCARD_CONTACT;
     SC_register_user_handler_action(&(curr_token_channel.card), smartcard_removal_action);
     curr_token_channel.card.type = SMARTCARD_UNKNOWN;
-    
+
     /* Token callbacks */
     cb_token_callbacks auth_token_callbacks = {
         .request_pin                   = auth_token_request_pin,
@@ -368,7 +368,7 @@ int _main(uint32_t task_id)
      * We maintain the secure channel opened for a while, we only lock the
      * user PIN for now.
      */
-    if(token_user_pin_lock(&curr_token_channel)){ 
+    if(token_user_pin_lock(&curr_token_channel)){
         goto err;
     }
 
@@ -384,7 +384,7 @@ int _main(uint32_t task_id)
     cryp_init_injector(CBC_ESSIV_key, KEY_256);
     printf("AES256_CBC_ESSIV used!\n");
 #else
-#ifdef CONFIG_TDES_CBC_ESSIV 
+#ifdef CONFIG_TDES_CBC_ESSIV
     cryp_init_injector(CBC_ESSIV_key, KEY_192);
     /* In order to avoid cold boot attacks, we can safely erase the master key! */
     memset(CBC_ESSIV_key, 0, sizeof(CBC_ESSIV_key));
@@ -427,8 +427,8 @@ int _main(uint32_t task_id)
         if (ret != SYS_E_DONE) {
             continue;
         }
-       
-	/***************************************************************************/ 
+
+	/***************************************************************************/
         if (id == id_crypto) {
             /*******************************
              * Managing Crypto task IPC
@@ -462,7 +462,7 @@ int _main(uint32_t task_id)
             }
         }
 
-	/***************************************************************************/ 
+	/***************************************************************************/
         if (id == id_pin) {
             /*******************************
              * Managing Pin task IPC
