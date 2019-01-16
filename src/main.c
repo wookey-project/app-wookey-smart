@@ -454,6 +454,14 @@ int _main(uint32_t task_id)
                     }
 #endif
 
+                case MAGIC_STORAGE_SCSI_BLOCK_NUM_RESP:
+                    {
+                        /* sending back size info to pin */
+
+                        sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd_data);
+                        break;
+                    }
+
                     /********* defaulting to none    *************/
                 default:
                     {
