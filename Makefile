@@ -23,7 +23,7 @@ VERSION = 1
 APP_BUILD_DIR = $(BUILD_DIR)/apps/$(DIR_NAME)
 
 CFLAGS += -ffunction-sections -fdata-sections
-CFLAGS += -Isrc/ -Iinc/ 
+CFLAGS += -Isrc/ -Iinc/
 CFLAGS += $(APPS_CFLAGS)
 CFLAGS += -I$(PROJ_FILES)/externals/libecc/src
 CFLAGS += $(EXTERNAL_CFLAGS)
