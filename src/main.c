@@ -267,7 +267,7 @@ int _main(uint32_t task_id)
 
     cryp_early_init(false, CRYP_MAP_AUTO, CRYP_CFG, CRYP_PRODMODE, &dma_in_desc, &dma_out_desc);
 
-    tokenret = token_early_init();
+    tokenret = token_early_init(TOKEN_MAP_AUTO);
     switch (tokenret) {
         case 1:
             printf("error while declaring GPIOs\n");
