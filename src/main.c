@@ -455,7 +455,7 @@ int _main(uint32_t task_id)
 #endif
                 case MAGIC_STORAGE_EJECTED:
                     {
-                        printf("j'ai recu un RESET\n");
+                        printf("ejection event received\n");
                         sys_reset();
                         while (1);
                         break;
