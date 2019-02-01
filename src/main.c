@@ -60,9 +60,11 @@ int auth_token_request_pin(char *pin, unsigned int *pin_len, token_pin_types pin
     ipc_sync_cmd.magic = cmd_magic;
     ipc_sync_cmd.state = SYNC_ASK_FOR_DATA;
 
-    do {
-        ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd);
-    } while (ret == SYS_E_BUSY);
+    ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd);
+    if (ret != SYS_E_DONE) {
+        printf("sys_ipc(IPC_SEND_SYNC, id_pin) failed! Exiting...\n");
+        return 1;
+    }
 
     /* Now wait for Acknowledge from pin */
     id = id_pin;
@@ -113,13 +115,12 @@ int auth_token_acknowledge_pin(token_ack_state ack, token_pin_types pin_type, to
     } else{
     	ipc_sync_cmd.state = SYNC_FAILURE;
     }
-    //do {
-        ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd);
-        if (ret != SYS_E_DONE) {
-            printf("unable to acknowledge!\n");
-            while (1);
-        }
-    //} while (ret == SYS_E_BUSY);
+
+    ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd);
+    if (ret != SYS_E_DONE) {
+        printf("unable to acknowledge!\n");
+        while (1);
+    }
 
     /* an invalid pin is considered as an error, we stop here, returning an error. */
     if (ack != TOKEN_ACK_VALID) {
@@ -151,9 +152,11 @@ int auth_token_request_pet_name(char *pet_name, unsigned int *pet_name_len)
     ipc_sync_cmd_data.data.req.sc_type = SC_PET_NAME;
     ipc_sync_cmd_data.data.req.sc_req = SC_REQ_MODIFY;
 
-    do {
-      ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd_data);
-    } while (ret == SYS_E_BUSY);
+    ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd_data);
+    if (ret != SYS_E_DONE) {
+        printf("sys_ipc(IPC_SEND_SYNC, id_pin) failed! Exiting...\n");
+        return 1;
+    }
 
     /* Now wait for Acknowledge from pin */
     id = id_pin;
@@ -197,10 +200,12 @@ int auth_token_request_pet_name_confirmation(const char *pet_name, unsigned int 
     memcpy(ipc_sync_cmd.data.req.sc_petname, pet_name, pet_name_len);
 
     printf("requesting Pet name confirmation from PIN\n");
-    do {
-        ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd);
-    } while (ret == SYS_E_BUSY);
 
+    ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd);
+    if (ret != SYS_E_DONE) {
+        printf("sys_ipc(IPC_SEND_SYNC, id_pin) failed! Exiting...\n");
+        return 1;
+    }
 
     printf("waiting for acknowledge from PIN for Pet name...\n");
     /* receiving user acknowledge for pet name */
@@ -264,7 +269,6 @@ int _main(uint32_t task_id)
     ret = sys_init(INIT_GETTASKID, "pin", &id_pin);
     printf("pin is task %x !\n", id_pin);
 
-
     cryp_early_init(false, CRYP_MAP_AUTO, CRYP_CFG, CRYP_PRODMODE, &dma_in_desc, &dma_out_desc);
 
     tokenret = token_early_init(TOKEN_MAP_AUTO);
@@ -303,10 +307,12 @@ int _main(uint32_t task_id)
     ipc_sync_cmd.magic = MAGIC_TASK_STATE_RESP;
     ipc_sync_cmd.state = SYNC_ACKNOWLEDGE;
 
-    do {
-        size = sizeof(struct sync_command);
-        ret = sys_ipc(IPC_SEND_SYNC, id_pin, size, (char*)&ipc_sync_cmd);
-    } while (ret == SYS_E_BUSY);
+    size = sizeof(struct sync_command);
+    ret = sys_ipc(IPC_SEND_SYNC, id_pin, size, (char*)&ipc_sync_cmd);
+    if (ret != SYS_E_DONE) {
+        printf("sys_ipc(IPC_SEND_SYNC, id_pin) failed! Exiting...\n");
+        return 1;
+    }
 
     /* Then Syncrhonize with crypto */
     size = sizeof(struct sync_command);
@@ -315,9 +321,11 @@ int _main(uint32_t task_id)
     ipc_sync_cmd.magic = MAGIC_TASK_STATE_CMD;
     ipc_sync_cmd.state = SYNC_READY;
 
-    do {
-        ret = sys_ipc(IPC_SEND_SYNC, id_crypto, size, (char*)&ipc_sync_cmd);
-    } while (ret == SYS_E_BUSY);
+    ret = sys_ipc(IPC_SEND_SYNC, id_crypto, size, (char*)&ipc_sync_cmd);
+    if (ret != SYS_E_DONE) {
+        printf("sys_ipc(IPC_SEND_SYNC, id_crypto) failed! Exiting...\n");
+        return 1;
+    }
 
     /* Now wait for Acknowledge from Crypto */
     id = id_crypto;
