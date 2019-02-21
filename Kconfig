@@ -5,9 +5,14 @@ config APP_SMART
   depends on STM32F4
   default y
   select USR_LIB_WOOKEY
-  select USR_DRV_CRYP
   select USR_LIB_TOKEN
   select USR_LIB_ISO7816
+  select USR_LIB_AES
+  select USR_LIB_HMAC
+  select USR_LIB_SIGN
+  select USR_DRV_CRYP
+  select USR_DRV_ISO7816
+  select USR_DRV_USART
   ---help---
     Say y if you want to embbed SMART custom application.
 
@@ -41,7 +46,7 @@ config APP_SMART_NUMSLOTS
     .text + .data in flash, and 8 (reduced to 7 with SHM) slots of 16kb in RAM.
     This choice has an impact on the total number of applications that can be loaded
     in the firmware.
-    
+
 config APP_SMART_STACKSIZE
   int "Stack size"
   depends on APP_SMART
@@ -50,7 +55,7 @@ config APP_SMART_STACKSIZE
     Specify the application stack size, in bytes. By default, set to 8192
     (i.e. 8k). Depending on the number of slots required, and the usage,
     the stack can be bigger or smaller.
-    
+
 
 config APP_SMART_PRIO
   int "Smart application priority"
