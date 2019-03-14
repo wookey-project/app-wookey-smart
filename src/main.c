@@ -7,6 +7,7 @@
 
 #include "api/syscall.h"
 #include "api/print.h"
+#include "api/string.h"
 #include "libcryp.h"
 #include "libtoken_auth.h"
 #include "libtoken_dfu.h"
