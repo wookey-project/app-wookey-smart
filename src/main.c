@@ -561,6 +561,8 @@ int _main(uint32_t task_id)
                     /********* defaulting to none    *************/
                 default:
                     {
+                        printf("Unkown command received !\n");
+                        goto err;
                         break;
                     }
             }
