@@ -483,6 +483,13 @@ int _main(uint32_t task_id)
                         break;
                     }
 
+                case MAGIC_REBOOT_REQUEST:
+                    {
+                        printf("Reset request!\n");
+                        sys_reset();
+                        break;
+                    }
+
                     /********* defaulting to none    *************/
                 default:
                     {
