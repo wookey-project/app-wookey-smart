@@ -5,10 +5,10 @@
  *
  */
 
-#include "api/syscall.h"
-#include "api/stdio.h"
-#include "api/nostd.h"
-#include "api/string.h"
+#include "libc/syscall.h"
+#include "libc/stdio.h"
+#include "libc/nostd.h"
+#include "libc/string.h"
 #include "libcryp.h"
 #include "libtoken_auth.h"
 #include "libtoken_dfu.h"
