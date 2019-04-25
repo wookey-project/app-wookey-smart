@@ -275,7 +275,7 @@ int _main(uint32_t task_id)
     ret = sys_init(INIT_GETTASKID, "pin", &id_pin);
     printf("pin is task %x !\n", id_pin);
 
-    cryp_early_init(false, CRYP_MAP_AUTO, CRYP_CFG, CRYP_PRODMODE, &dma_in_desc, &dma_out_desc);
+    cryp_early_init(false, CRYP_MAP_AUTO, CRYP_CFG, &dma_in_desc, &dma_out_desc);
 
     tokenret = token_early_init(TOKEN_MAP_AUTO);
     switch (tokenret) {
