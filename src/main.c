@@ -73,10 +73,15 @@ int auth_token_request_pin(char *pin, unsigned int *pin_len, token_pin_types pin
     size = sizeof(struct sync_command_data); /* max pin size: 32 */
 
     ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
-    if (   ipc_sync_cmd.magic == resp_magic
-            && ipc_sync_cmd.state == SYNC_DONE) {
+    if (ret != SYS_E_DONE) {
+        printf("sys_ipc(IPC_RECV_SYNC) failed! Exiting...\n");
+        return 1;
+    }
+
+    if (   (ipc_sync_cmd.magic == resp_magic)
+            && (ipc_sync_cmd.state == SYNC_DONE)) {
         printf("received pin from PIN\n");
-        if(*pin_len < ipc_sync_cmd.data_size){
+        if((*pin_len) < ipc_sync_cmd.data_size){
               goto err;
         }
         memcpy(pin, (void*)&(ipc_sync_cmd.data.u8), ipc_sync_cmd.data_size);
@@ -107,7 +112,7 @@ int auth_token_acknowledge_pin(token_ack_state ack, token_pin_types pin_type, to
     }
 
 
-    if (pin_type == TOKEN_USER_PIN || pin_type == TOKEN_PET_PIN) {
+    if ((pin_type == TOKEN_USER_PIN) || (pin_type == TOKEN_PET_PIN)) {
        ipc_sync_cmd.magic = MAGIC_CRYPTO_PIN_RESP;
     } else {
         goto err;
@@ -165,12 +170,16 @@ int auth_token_request_pet_name(char *pet_name, unsigned int *pet_name_len)
     size = sizeof(struct sync_command_data); /* max pin size: 32 */
 
     ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd_data);
-    if (   ipc_sync_cmd_data.magic == resp_magic
-            && ipc_sync_cmd_data.state == SYNC_DONE) {
+    if (ret != SYS_E_DONE) {
+        printf("sys_ipc(IPC_RECV_SYNC) failed! Exiting...\n");
+        return 1;
+    }
+    if (   (ipc_sync_cmd_data.magic == resp_magic)
+            && (ipc_sync_cmd_data.state == SYNC_DONE)) {
         printf("received pet name from PIN: %s, size: %d\n",
                 (char*)ipc_sync_cmd_data.data.u8,
                 ipc_sync_cmd_data.data_size);
-        if(*pet_name_len < ipc_sync_cmd_data.data_size){
+        if((*pet_name_len) < ipc_sync_cmd_data.data_size){
               printf("pet name len (%d) too long !\n", ipc_sync_cmd_data.data_size);
               goto err;
         }
@@ -217,10 +226,13 @@ int auth_token_request_pet_name_confirmation(const char *pet_name, unsigned int 
     /* receiving user acknowledge for pet name */
     size = sizeof(struct sync_command);
     id = id_pin;
-    sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
-
-    if (ipc_sync_cmd.magic != MAGIC_CRYPTO_PIN_RESP ||
-        ipc_sync_cmd.state != SYNC_ACKNOWLEDGE) {
+    ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
+    if (ret != SYS_E_DONE) {
+        printf("sys_ipc(IPC_RECV_SYNC) failed! Exiting...\n");
+        return 1;
+    }
+    if ((ipc_sync_cmd.magic != MAGIC_CRYPTO_PIN_RESP) ||
+        (ipc_sync_cmd.state != SYNC_ACKNOWLEDGE)) {
         printf("[AUTH Token] Pen name has not been acknowledged by the user\n");
         goto err;
     }
@@ -304,9 +316,12 @@ int _main(uint32_t task_id)
     /* First, wait for pin to finish its init phase */
     id = id_pin;
     ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
-
-    if (   ipc_sync_cmd.magic == MAGIC_TASK_STATE_CMD
-        && ipc_sync_cmd.state == SYNC_READY) {
+    if (ret != SYS_E_DONE) {
+        printf("sys_ipc(IPC_RECV_SYNC) failed! Exiting...\n");
+        return 1;
+    }
+    if (   (ipc_sync_cmd.magic == MAGIC_TASK_STATE_CMD)
+        && (ipc_sync_cmd.state == SYNC_READY)) {
         printf("pin has finished its init phase, acknowledge...\n");
     }
 
@@ -337,8 +352,13 @@ int _main(uint32_t task_id)
     id = id_crypto;
 
     ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
-    if (   ipc_sync_cmd.magic == MAGIC_TASK_STATE_RESP
-        && ipc_sync_cmd.state == SYNC_ACKNOWLEDGE) {
+    if (ret != SYS_E_DONE) {
+        printf("sys_ipc(IPC_RECV_SYNC) failed! Exiting...\n");
+        return 1;
+    }
+
+    if (   (ipc_sync_cmd.magic == MAGIC_TASK_STATE_RESP)
+        && (ipc_sync_cmd.state == SYNC_ACKNOWLEDGE)) {
         printf("crypto has acknowledge end_of_init, continuing\n");
     }
 
@@ -350,8 +370,13 @@ int _main(uint32_t task_id)
     id = id_crypto;
     size = sizeof(struct sync_command);
     ret = sys_ipc(IPC_RECV_SYNC, &id, &size, (char*)&ipc_sync_cmd);
-    if (   ipc_sync_cmd.magic == MAGIC_CRYPTO_INJECT_CMD
-        && ipc_sync_cmd.state == SYNC_READY) {
+    if (ret != SYS_E_DONE) {
+        printf("sys_ipc(IPC_RECV_SYNC) failed! Exiting...\n");
+        return 1;
+    }
+
+    if (   (ipc_sync_cmd.magic == MAGIC_CRYPTO_INJECT_CMD)
+        && (ipc_sync_cmd.state == SYNC_READY)) {
         printf("crypto is requesting key injection...\n");
     }
 
@@ -422,7 +447,7 @@ int _main(uint32_t task_id)
     do {
       size = sizeof(struct sync_command_data);
       ret = sys_ipc(IPC_SEND_SYNC, id_crypto, size, (char*)&ipc_sync_cmd_data);
-    } while (ret == SYS_E_BUSY);
+    } while (ret != SYS_E_DONE);
 
     // infinite loop at end of init
     printf("Acknowedge send, going back to sleep up keeping only smartcard watchdog.\n");
@@ -462,7 +487,10 @@ int _main(uint32_t task_id)
                             ipc_sync_cmd.magic = MAGIC_CRYPTO_INJECT_RESP;
                             ipc_sync_cmd.state = SYNC_DONE;
 
-                            sys_ipc(IPC_SEND_SYNC, id_crypto, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+                            ret = sys_ipc(IPC_SEND_SYNC, id_crypto, sizeof(struct sync_command), (char*)&ipc_sync_cmd);
+			    if(ret != SYS_E_DONE){
+                                goto err;
+			    }
                         }
                         break;
                     }
@@ -478,8 +506,10 @@ int _main(uint32_t task_id)
                 case MAGIC_STORAGE_SCSI_BLOCK_NUM_RESP:
                     {
                         /* sending back size info to pin */
-
-                        sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd_data);
+                        ret = sys_ipc(IPC_SEND_SYNC, id_pin, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd_data);
+   		        if(ret != SYS_E_DONE){
+                            goto err;
+			}
                         break;
                     }
 
@@ -513,8 +543,8 @@ int _main(uint32_t task_id)
                           continue;
                         }
                          */
-                        if (   ipc_sync_cmd_data.data.req.sc_type == SC_PET_PIN
-                            && ipc_sync_cmd_data.data.req.sc_req  == SC_REQ_MODIFY) {
+                        if (   (ipc_sync_cmd_data.data.req.sc_type == SC_PET_PIN)
+                            && (ipc_sync_cmd_data.data.req.sc_req  == SC_REQ_MODIFY)) {
                             /* set the new pet pin. The CRYPTO_AUTH_CMD must have been passed and the channel being unlocked */
                             printf("PIN require a Pet Pin update\n");
 
@@ -524,8 +554,8 @@ int _main(uint32_t task_id)
                                 continue;
                             }
                             printf("New pet pin registered\n");
-                        } else if (   ipc_sync_cmd_data.data.req.sc_type == SC_USER_PIN
-                                   && ipc_sync_cmd_data.data.req.sc_req  == SC_REQ_MODIFY) {
+                        } else if (   (ipc_sync_cmd_data.data.req.sc_type == SC_USER_PIN)
+                                   && (ipc_sync_cmd_data.data.req.sc_req  == SC_REQ_MODIFY)) {
                             /* set the new pet pin. The CRYPTO_AUTH_CMD must have been passed and the channel being unlocked */
                             printf("PIN require a User Pin update\n");
 
@@ -535,8 +565,8 @@ int _main(uint32_t task_id)
                                 continue;
                             }
                             printf("New user pin registered\n");
-                        } else if (   ipc_sync_cmd_data.data.req.sc_type == SC_PET_NAME
-                                   && ipc_sync_cmd_data.data.req.sc_req  == SC_REQ_MODIFY) {
+                        } else if (   (ipc_sync_cmd_data.data.req.sc_type == SC_PET_NAME)
+                                   && (ipc_sync_cmd_data.data.req.sc_req  == SC_REQ_MODIFY)) {
                             /* set the new pet pin. The CRYPTO_AUTH_CMD must have been passed and the channel being unlocked */
                             printf("PIN require a Pet Name update\n");
 
