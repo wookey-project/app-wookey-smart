@@ -192,8 +192,11 @@ config APP_SMART_PERM_MEM_DYNAMIC_MAP
 
 endmenu
 
-
-
 endmenu
+
+config APP_SMART_DOMAIN
+    depends on APP_SMART
+    int "SMART app security domain"
+    default 0
 
 endmenu
