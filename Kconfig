@@ -16,6 +16,8 @@ config APP_SMART
   ---help---
     Say y if you want to embbed SMART custom application.
 
+if APP_SMART
+
 config APP_SMART_FW
   bool "Smart App for firmware mode"
   depends on APP_SMART
@@ -198,5 +200,7 @@ config APP_SMART_DOMAIN
     depends on APP_SMART
     int "SMART app security domain"
     default 0
+
+endif
 
 endmenu
