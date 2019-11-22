@@ -22,6 +22,10 @@
 token_channel curr_token_channel = { .channel_initialized = 0, .secure_channel = 0, .IV = { 0 }, .first_IV = { 0 }, .AES_key = { 0 }, .HMAC_key = { 0 }, .pbkdf2_iterations = 0, .platform_salt_len = 0 };
 uint8_t id_pin = 0;
 
+char global_pin[32] = { 0 };
+unsigned int global_pin_len = 0;
+unsigned char sdpwd[16] = { 0 };
+
 int auth_token_request_pin(char *pin, unsigned int *pin_len, token_pin_types pin_type, token_pin_actions action)
 {
     struct sync_command_data ipc_sync_cmd = { 0 };
@@ -87,6 +91,8 @@ int auth_token_request_pin(char *pin, unsigned int *pin_len, token_pin_types pin
         }
         memcpy(pin, (void*)&(ipc_sync_cmd.data.u8), ipc_sync_cmd.data_size);
         *pin_len = ipc_sync_cmd.data_size;
+        memcpy(global_pin, pin, *pin_len);
+        global_pin_len = *pin_len;
         return 0;
     }
 
@@ -411,6 +417,10 @@ int _main(uint32_t task_id)
         goto err;
     }
 
+    if(auth_token_get_sdpwd(&curr_token_channel, global_pin, global_pin_len, sdpwd, sizeof(sdpwd))){
+      goto err;
+    }
+
     /* Now that we have received our assets, we can lock the token.
      * We maintain the secure channel opened for a while, we only lock the
      * user PIN for now.
@@ -526,6 +536,32 @@ int _main(uint32_t task_id)
                         printf("Reset request!\n");
                         sys_reset();
                         break;
+                    }
+                case MAGIC_STORAGE_PASSWD:
+                    {
+                        //first argument is the actual size of the password
+                        //Ask Javacard to give us the unlocking pass
+                        if(global_pin_len == 0){
+                            goto err;
+                        }
+#if 0
+
+                        if(auth_token_get_sdpwd(&curr_token_channel, global_pin, global_pin_len, sdpwd, sizeof(sdpwd))){
+                          goto err;
+                      }
+#endif
+                        ipc_sync_cmd_data.data.u32[0]=16;
+                        //memcpy(ipc_sync_cmd_data.data.u8+sizeof(uint32_t),"tamere",6);
+                        memcpy(ipc_sync_cmd_data.data.u8+sizeof(uint32_t), sdpwd, sizeof(sdpwd));
+                        //indicate the actual size the the transmitted data
+                        ipc_sync_cmd_data.data_size=sizeof(sdpwd)+sizeof(uint32_t);
+                        
+                        ret = sys_ipc(IPC_SEND_SYNC, id_crypto, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd_data);
+   		        if(ret != SYS_E_DONE){
+                            goto err;
+			}
+                        break;
+                        
                     }
 
                     /********* defaulting to none    *************/
