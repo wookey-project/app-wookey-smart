@@ -15,6 +15,7 @@
 #include "aes.h"
 #include "wookey_ipc.h"
 #include "autoconf.h"
+#include "libc/sanhandlers.h"
 
 #define SMART_DEBUG 0
 
@@ -388,6 +389,8 @@ int _main(uint32_t task_id)
 
     /* Register smartcard removal handler */
     curr_token_channel.card.type = SMARTCARD_CONTACT;
+    /* Register our callback */
+    ADD_LOC_HANDLER(smartcard_removal_action)
     SC_register_user_handler_action(&(curr_token_channel.card), smartcard_removal_action);
     curr_token_channel.card.type = SMARTCARD_UNKNOWN;
 
@@ -398,6 +401,11 @@ int _main(uint32_t task_id)
         .request_pet_name              = auth_token_request_pet_name,
         .request_pet_name_confirmation = auth_token_request_pet_name_confirmation
     };
+    /* Register our calbacks */
+    ADD_LOC_HANDLER(auth_token_request_pin)
+    ADD_LOC_HANDLER(auth_token_acknowledge_pin)
+    ADD_LOC_HANDLER(auth_token_request_pet_name)
+    ADD_LOC_HANDLER(auth_token_request_pet_name_confirmation)
     if(!tokenret && auth_token_exchanges(&curr_token_channel, &auth_token_callbacks, CBC_ESSIV_key, sizeof(CBC_ESSIV_key), CBC_ESSIV_h_key, sizeof(CBC_ESSIV_h_key), NULL, 0))
     {
         goto err;
