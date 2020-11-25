@@ -412,15 +412,15 @@ int _main(uint32_t task_id)
     ADD_LOC_HANDLER(auth_token_acknowledge_pin)
     ADD_LOC_HANDLER(auth_token_request_pet_name)
     ADD_LOC_HANDLER(auth_token_request_pet_name_confirmation)
-    if(!tokenret && auth_token_exchanges(&curr_token_channel, &auth_token_callbacks, CBC_ESSIV_key, sizeof(CBC_ESSIV_key), CBC_ESSIV_h_key, sizeof(CBC_ESSIV_h_key), NULL, 0))
+    if(!tokenret && auth_token_exchanges(&curr_token_channel, &auth_token_callbacks, CBC_ESSIV_key, sizeof(CBC_ESSIV_key), CBC_ESSIV_h_key, sizeof(CBC_ESSIV_h_key), sdpwd, sizeof(sdpwd), NULL, 0))
     {
         goto err;
     }
-
+#if 0
     if(auth_token_get_sdpwd(&curr_token_channel, global_pin, global_pin_len, sdpwd, sizeof(sdpwd))){
       goto err;
     }
-
+#endif
     /* Now that we have received our assets, we can lock the token.
      * We maintain the secure channel opened for a while, we only lock the
      * user PIN for now.
@@ -555,13 +555,13 @@ int _main(uint32_t task_id)
                         memcpy(ipc_sync_cmd_data.data.u8+sizeof(uint32_t), sdpwd, sizeof(sdpwd));
                         //indicate the actual size the the transmitted data
                         ipc_sync_cmd_data.data_size=sizeof(sdpwd)+sizeof(uint32_t);
-                        
+
                         ret = sys_ipc(IPC_SEND_SYNC, id_crypto, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd_data);
    		        if(ret != SYS_E_DONE){
                             goto err;
 			}
                         break;
-                        
+
                     }
 
                     /********* defaulting to none    *************/
