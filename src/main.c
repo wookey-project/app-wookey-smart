@@ -16,8 +16,73 @@
 #include "wookey_ipc.h"
 #include "autoconf.h"
 #include "libc/sanhandlers.h"
+#include "generated/backup_sram.h"
 
 #define SMART_DEBUG 0
+
+#ifdef CONFIG_APP_SMART_USE_BKUP_SRAM
+/* Map and unmap the Backup SRAM */
+static volatile bool backup_sram_is_mapped = false;
+static volatile int  dev_backup_sram_desc = 0;
+static int backup_sram_init(void){
+    const char *name = "backup-sram";
+    e_syscall_ret ret = 0;
+
+    device_t dev;
+    memset((void*)&dev, 0, sizeof(device_t));
+    strncpy(dev.name, name, sizeof (dev.name));
+    dev.address = backup_sram_dev_infos.address;
+    dev.size = backup_sram_dev_infos.size;
+    dev.map_mode = DEV_MAP_VOLUNTARY;
+
+    dev.irq_num = 0;
+    dev.gpio_num = 0;
+    int dev_backup_sram_desc_ = dev_backup_sram_desc;
+    ret = sys_init(INIT_DEVACCESS, &dev, (int*)&dev_backup_sram_desc_);
+    if(ret != SYS_E_DONE){
+        printf("Error: Backup SRAM, sys_init error!\n");
+        goto err;
+    }
+    dev_backup_sram_desc = dev_backup_sram_desc_;
+
+    return 0;
+err:
+    return -1;
+}
+
+static int backup_sram_map(void){
+    if(backup_sram_is_mapped == false){
+        e_syscall_ret ret;
+        ret = sys_cfg(CFG_DEV_MAP, dev_backup_sram_desc);
+        backup_sram_is_mapped = true;
+        if (ret != SYS_E_DONE) {
+            printf("Unable to map Backup SRAM!\n");
+            goto err;
+        }
+    }
+
+    return 0;
+err:
+    return -1;
+}
+
+static int backup_sram_unmap(void){
+    if(backup_sram_is_mapped){
+        e_syscall_ret ret;
+        ret = sys_cfg(CFG_DEV_UNMAP, dev_backup_sram_desc);
+        dev_backup_sram_desc = false;
+        if (ret != SYS_E_DONE) {
+            printf("Unable to unmap cryp!\n");
+            goto err;
+        }
+    }
+
+    return 0;
+err:
+    return -1;
+}
+#endif
+
 
 token_channel curr_token_channel = { .channel_initialized = 0, .secure_channel = 0, .IV = { 0 }, .first_IV = { 0 }, .AES_key = { 0 }, .HMAC_key = { 0 }, .pbkdf2_iterations = 0, .platform_salt_len = 0 };
 uint8_t id_pin = 0;
@@ -288,7 +353,7 @@ int _main(uint32_t task_id)
     ret = sys_init(INIT_GETTASKID, "pin", &id_pin);
     printf("pin is task %x !\n", id_pin);
 
-    cryp_early_init(false, CRYP_MAP_AUTO, CRYP_CFG, &dma_in_desc, &dma_out_desc);
+    cryp_early_init(false, CRYP_MAP_VOLUNTARY, CRYP_CFG, &dma_in_desc, &dma_out_desc);
 
     tokenret = token_early_init(TOKEN_MAP_AUTO);
     switch (tokenret) {
@@ -304,6 +369,12 @@ int _main(uint32_t task_id)
         default:
             printf("Smartcard early init done\n");
     }
+
+#ifdef CONFIG_APP_SMART_USE_BKUP_SRAM
+    if(backup_sram_init()){
+        goto err;
+    }
+#endif
 
     printf("set init as done\n");
     ret = sys_init(INIT_DONE);
@@ -384,6 +455,13 @@ int _main(uint32_t task_id)
     /*********************************************
      * AUTH token communication, to get key from it
      *********************************************/
+#ifdef CONFIG_APP_SMART_USE_BKUP_SRAM
+    /* Map the Backup SRAM to get our keybags*/
+    if(backup_sram_map()){
+        goto err;
+    }
+#endif
+
     unsigned char CBC_ESSIV_key[32] = {0};
     unsigned char CBC_ESSIV_h_key[32] = {0};
 
@@ -410,6 +488,12 @@ int _main(uint32_t task_id)
     {
         goto err;
     }
+
+#ifdef CONFIG_APP_SMART_USE_BKUP_SRAM
+    if(backup_sram_unmap()){
+        goto err;
+    }
+#endif
 
     /* Now that we have received our assets, we can lock the token.
      * We maintain the secure channel opened for a while, we only lock the
