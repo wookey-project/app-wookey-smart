@@ -162,7 +162,7 @@ $(APP_BUILD_DIR)/%.o: %.c
 $(APP_BUILD_DIR)/$(ELF_NAME): $(OBJ)
 	$(call if_changed,link_o_target)
 
-CROSS_OBJCOPY_ARGS="--remove-section=.noupgrade_auth"
+CROSS_OBJCOPY_ARGS="--keep-section=.noupgrade_auth"
 # HEX
 $(APP_BUILD_DIR)/$(HEX_NAME): $(APP_BUILD_DIR)/$(ELF_NAME)
 	$(call if_changed,objcopy_ihex)
