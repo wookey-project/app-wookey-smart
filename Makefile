@@ -40,7 +40,7 @@ CFLAGS += -I$(PROJ_FILES)/externals/libecc/src $(EXTERNAL_CFLAGS)
 LDFLAGS += $(EXTRA_LDFLAGS) -L$(APP_BUILD_DIR)
 
 # project's library you whish to use...
-LD_LIBS += -ltoken -lsmartcard -liso7816 -ldrviso7816 -lcryp -lusart -laes -lhmac -lstd -lsign
+LD_LIBS += -ltoken -lsmartcard -liso7816 -ldrviso7816 -lcryp -lusart -laes -lhmac -lstd -lsign -Wl,--no-whole-archive
 
 ###################################################################
 # okay let's list our source files and generated files now
@@ -135,7 +135,7 @@ show:
 # all (default) build the app
 all: $(APP_BUILD_DIR) alldeps app
 
-# Smart is the lonely app using a dedicated section, named
+# Smart an app using a dedicated section, named
 # 'NOUPDATE'. This section hold the encrypted keybag.
 # Although, this section is not mapped by the task itself, but by the
 # bootloader, which is responsible for copying the encrypted keybag
