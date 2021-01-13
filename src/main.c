@@ -87,6 +87,10 @@ err:
 token_channel curr_token_channel = { .channel_initialized = 0, .secure_channel = 0, .IV = { 0 }, .first_IV = { 0 }, .AES_key = { 0 }, .HMAC_key = { 0 }, .pbkdf2_iterations = 0, .platform_salt_len = 0 };
 uint8_t id_pin = 0;
 
+char global_pin[32] = { 0 };
+unsigned int global_pin_len = 0;
+unsigned char sdpwd[16] = { 0 };
+
 int auth_token_request_pin(char *pin, unsigned int *pin_len, token_pin_types pin_type, token_pin_actions action)
 {
     struct sync_command_data ipc_sync_cmd = { 0 };
@@ -152,6 +156,8 @@ int auth_token_request_pin(char *pin, unsigned int *pin_len, token_pin_types pin
         }
         memcpy(pin, (void*)&(ipc_sync_cmd.data.u8), ipc_sync_cmd.data_size);
         *pin_len = ipc_sync_cmd.data_size;
+        memcpy(global_pin, pin, *pin_len);
+        global_pin_len = *pin_len;
         return 0;
     }
 
@@ -484,7 +490,7 @@ int _main(uint32_t task_id)
     ADD_LOC_HANDLER(auth_token_acknowledge_pin)
     ADD_LOC_HANDLER(auth_token_request_pet_name)
     ADD_LOC_HANDLER(auth_token_request_pet_name_confirmation)
-    if(!tokenret && auth_token_exchanges(&curr_token_channel, &auth_token_callbacks, CBC_ESSIV_key, sizeof(CBC_ESSIV_key), CBC_ESSIV_h_key, sizeof(CBC_ESSIV_h_key), NULL, 0))
+    if(!tokenret && auth_token_exchanges(&curr_token_channel, &auth_token_callbacks, CBC_ESSIV_key, sizeof(CBC_ESSIV_key), CBC_ESSIV_h_key, sizeof(CBC_ESSIV_h_key), sdpwd, sizeof(sdpwd), NULL, 0))
     {
         goto err;
     }
@@ -571,7 +577,7 @@ int _main(uint32_t task_id)
                 case MAGIC_CRYPTO_INJECT_CMD:
                     {
                         /* If we use AES-CBC-ESSIV, we might have to reinject the key! */
-                        // is there a key schedule request ?
+                        /* Is there a key schedule request ? */
 
                         if (ret == SYS_E_DONE) {
                             cryp_init_injector(CBC_ESSIV_key, KEY_256);
@@ -611,6 +617,25 @@ int _main(uint32_t task_id)
                         sys_reset();
                         break;
                     }
+                case MAGIC_STORAGE_PASSWD:
+                    {
+                        /* First argument is the actual size of the password.
+                         * Ask the token to give us the unlocking pass */
+                        if(global_pin_len == 0){
+                            goto err;
+                        }
+                        ipc_sync_cmd_data.data.u32[0]=16;
+                        memcpy(ipc_sync_cmd_data.data.u8+sizeof(uint32_t), sdpwd, sizeof(sdpwd));
+                        /* Indicate the actual size the the transmitted data */
+                        ipc_sync_cmd_data.data_size=sizeof(sdpwd)+sizeof(uint32_t);
+
+                        ret = sys_ipc(IPC_SEND_SYNC, id_crypto, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd_data);
+   		        if(ret != SYS_E_DONE){
+                            goto err;
+			}
+                        break;
+
+                    }
 
                     /********* defaulting to none    *************/
                 default:
@@ -629,12 +654,6 @@ int _main(uint32_t task_id)
                 /********* set user pin into smartcard *******/
                 case MAGIC_SETTINGS_CMD:
                     {
-                        /*
-                        if (channel_state != CHAN_UNLOCKED) {
-                          printf("channel has not been unlocked. You must authenticate yourself first\n");
-                          continue;
-                        }
-                         */
                         if (   (ipc_sync_cmd_data.data.req.sc_type == SC_PET_PIN)
                             && (ipc_sync_cmd_data.data.req.sc_req  == SC_REQ_MODIFY)) {
                             /* set the new pet pin. The CRYPTO_AUTH_CMD must have been passed and the channel being unlocked */
