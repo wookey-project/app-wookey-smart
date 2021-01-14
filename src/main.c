@@ -336,7 +336,6 @@ int _main(uint32_t task_id)
 {
     /* FIXME: try to make key global, __GLOBAL_OFFSET_TAB error */
     char *wellcome_msg = "hello, I'm smart";
-//    char buffer_out[2] = "@@";
     uint8_t id = 0;
     uint8_t id_crypto = 0;
     e_syscall_ret ret = 0;
