@@ -16,49 +16,49 @@
 #include "wookey_ipc.h"
 #include "autoconf.h"
 #include "libc/sanhandlers.h"
-#include "generated/backup_sram.h"
+#include "generated/bsram_keybag.h"
 
 #define SMART_DEBUG 0
 
 #ifdef CONFIG_APP_SMART_USE_BKUP_SRAM
 /* Map and unmap the Backup SRAM */
-static volatile bool backup_sram_is_mapped = false;
-static volatile int  dev_backup_sram_desc = 0;
-static int backup_sram_init(void){
-    const char *name = "backup-sram";
+static volatile bool bsram_keybag_is_mapped = false;
+static volatile int  dev_bsram_keybag_desc = 0;
+static int bsram_keybag_init(void){
+    const char *name = "bsram-keybag";
     e_syscall_ret ret = 0;
 
     device_t dev;
     memset((void*)&dev, 0, sizeof(device_t));
     strncpy(dev.name, name, sizeof (dev.name));
-    dev.address = backup_sram_dev_infos.address;
-    dev.size = backup_sram_dev_infos.size;
+    dev.address = bsram_keybag_dev_infos.address;
+    dev.size = bsram_keybag_dev_infos.size;
     dev.map_mode = DEV_MAP_VOLUNTARY;
 
     dev.irq_num = 0;
     dev.gpio_num = 0;
-    int dev_backup_sram_desc_ = dev_backup_sram_desc;
-    ret = sys_init(INIT_DEVACCESS, &dev, (int*)&dev_backup_sram_desc_);
+    int dev_bsram_keybag_desc_ = dev_bsram_keybag_desc;
+    ret = sys_init(INIT_DEVACCESS, &dev, (int*)&dev_bsram_keybag_desc_);
     if(ret != SYS_E_DONE){
-        printf("Error: Backup SRAM, sys_init error!\n");
+        printf("Error: Backup SRAM keybag, sys_init error!\n");
         goto err;
     }
-    dev_backup_sram_desc = dev_backup_sram_desc_;
+    dev_bsram_keybag_desc = dev_bsram_keybag_desc_;
 
     return 0;
 err:
     return -1;
 }
 
-static int backup_sram_map(void){
-    if(backup_sram_is_mapped == false){
+static int bsram_keybag_map(void){
+    if(bsram_keybag_is_mapped == false){
         e_syscall_ret ret;
-        ret = sys_cfg(CFG_DEV_MAP, dev_backup_sram_desc);
-        backup_sram_is_mapped = true;
+        ret = sys_cfg(CFG_DEV_MAP, dev_bsram_keybag_desc);
         if (ret != SYS_E_DONE) {
-            printf("Unable to map Backup SRAM!\n");
+            printf("Unable to map Backup SRAM keybag!\n");
             goto err;
         }
+        bsram_keybag_is_mapped = true;
     }
 
     return 0;
@@ -66,15 +66,15 @@ err:
     return -1;
 }
 
-static int backup_sram_unmap(void){
-    if(backup_sram_is_mapped){
+static int bsram_keybag_unmap(void){
+    if(bsram_keybag_is_mapped){
         e_syscall_ret ret;
-        ret = sys_cfg(CFG_DEV_UNMAP, dev_backup_sram_desc);
-        dev_backup_sram_desc = false;
+        ret = sys_cfg(CFG_DEV_UNMAP, dev_bsram_keybag_desc);
         if (ret != SYS_E_DONE) {
-            printf("Unable to unmap cryp!\n");
+            printf("Unable to unmap Backup SRAM keybag!\n");
             goto err;
         }
+        bsram_keybag_is_mapped = false;
     }
 
     return 0;
@@ -86,6 +86,10 @@ err:
 
 token_channel curr_token_channel = { .channel_initialized = 0, .secure_channel = 0, .IV = { 0 }, .first_IV = { 0 }, .AES_key = { 0 }, .HMAC_key = { 0 }, .pbkdf2_iterations = 0, .platform_salt_len = 0 };
 uint8_t id_pin = 0;
+
+char global_pin[32] = { 0 };
+unsigned int global_pin_len = 0;
+unsigned char sdpwd[16] = { 0 };
 
 int auth_token_request_pin(char *pin, unsigned int *pin_len, token_pin_types pin_type, token_pin_actions action)
 {
@@ -152,6 +156,8 @@ int auth_token_request_pin(char *pin, unsigned int *pin_len, token_pin_types pin
         }
         memcpy(pin, (void*)&(ipc_sync_cmd.data.u8), ipc_sync_cmd.data_size);
         *pin_len = ipc_sync_cmd.data_size;
+        memcpy(global_pin, pin, *pin_len);
+        global_pin_len = *pin_len;
         return 0;
     }
 
@@ -330,7 +336,6 @@ int _main(uint32_t task_id)
 {
     /* FIXME: try to make key global, __GLOBAL_OFFSET_TAB error */
     char *wellcome_msg = "hello, I'm smart";
-//    char buffer_out[2] = "@@";
     uint8_t id = 0;
     uint8_t id_crypto = 0;
     e_syscall_ret ret = 0;
@@ -371,7 +376,7 @@ int _main(uint32_t task_id)
     }
 
 #ifdef CONFIG_APP_SMART_USE_BKUP_SRAM
-    if(backup_sram_init()){
+    if(bsram_keybag_init()){
         goto err;
     }
 #endif
@@ -457,7 +462,7 @@ int _main(uint32_t task_id)
      *********************************************/
 #ifdef CONFIG_APP_SMART_USE_BKUP_SRAM
     /* Map the Backup SRAM to get our keybags*/
-    if(backup_sram_map()){
+    if(bsram_keybag_map()){
         goto err;
     }
 #endif
@@ -484,13 +489,13 @@ int _main(uint32_t task_id)
     ADD_LOC_HANDLER(auth_token_acknowledge_pin)
     ADD_LOC_HANDLER(auth_token_request_pet_name)
     ADD_LOC_HANDLER(auth_token_request_pet_name_confirmation)
-    if(!tokenret && auth_token_exchanges(&curr_token_channel, &auth_token_callbacks, CBC_ESSIV_key, sizeof(CBC_ESSIV_key), CBC_ESSIV_h_key, sizeof(CBC_ESSIV_h_key), NULL, 0))
+    if(!tokenret && auth_token_exchanges(&curr_token_channel, &auth_token_callbacks, CBC_ESSIV_key, sizeof(CBC_ESSIV_key), CBC_ESSIV_h_key, sizeof(CBC_ESSIV_h_key), sdpwd, sizeof(sdpwd), NULL, 0))
     {
         goto err;
     }
 
 #ifdef CONFIG_APP_SMART_USE_BKUP_SRAM
-    if(backup_sram_unmap()){
+    if(bsram_keybag_unmap()){
         goto err;
     }
 #endif
@@ -571,7 +576,7 @@ int _main(uint32_t task_id)
                 case MAGIC_CRYPTO_INJECT_CMD:
                     {
                         /* If we use AES-CBC-ESSIV, we might have to reinject the key! */
-                        // is there a key schedule request ?
+                        /* Is there a key schedule request ? */
 
                         if (ret == SYS_E_DONE) {
                             cryp_init_injector(CBC_ESSIV_key, KEY_256);
@@ -611,6 +616,25 @@ int _main(uint32_t task_id)
                         sys_reset();
                         break;
                     }
+                case MAGIC_STORAGE_PASSWD:
+                    {
+                        /* First argument is the actual size of the password.
+                         * Ask the token to give us the unlocking pass */
+                        if(global_pin_len == 0){
+                            goto err;
+                        }
+                        ipc_sync_cmd_data.data.u32[0]=16;
+                        memcpy(ipc_sync_cmd_data.data.u8+sizeof(uint32_t), sdpwd, sizeof(sdpwd));
+                        /* Indicate the actual size the the transmitted data */
+                        ipc_sync_cmd_data.data_size=sizeof(sdpwd)+sizeof(uint32_t);
+
+                        ret = sys_ipc(IPC_SEND_SYNC, id_crypto, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd_data);
+   		        if(ret != SYS_E_DONE){
+                            goto err;
+			}
+                        break;
+
+                    }
 
                     /********* defaulting to none    *************/
                 default:
@@ -629,12 +653,6 @@ int _main(uint32_t task_id)
                 /********* set user pin into smartcard *******/
                 case MAGIC_SETTINGS_CMD:
                     {
-                        /*
-                        if (channel_state != CHAN_UNLOCKED) {
-                          printf("channel has not been unlocked. You must authenticate yourself first\n");
-                          continue;
-                        }
-                         */
                         if (   (ipc_sync_cmd_data.data.req.sc_type == SC_PET_PIN)
                             && (ipc_sync_cmd_data.data.req.sc_req  == SC_REQ_MODIFY)) {
                             /* set the new pet pin. The CRYPTO_AUTH_CMD must have been passed and the channel being unlocked */
