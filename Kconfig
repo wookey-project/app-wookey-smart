@@ -67,6 +67,7 @@ config APP_SMART_PRIO
     as much as possible to avoid deny of service to lower priority tasks
 
 config APP_SMART_USE_BKUP_SRAM
+  select LOADER_BSRAM_KEYBAG_AUTH
   bool "Smart App Backup SRAM usage for keybags"
   depends on APP_SMART
   depends on STM32F4
