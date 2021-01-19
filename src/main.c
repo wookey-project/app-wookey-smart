@@ -18,7 +18,7 @@
 #include "libc/sanhandlers.h"
 #include "generated/bsram_keybag.h"
 
-#define SMART_DEBUG 0
+#define CONFIG_SMARTCARD_DEBUG 0
 
 #ifdef CONFIG_APP_SMART_USE_BKUP_SRAM
 /* Map and unmap the Backup SRAM */
@@ -623,11 +623,14 @@ int _main(uint32_t task_id)
                         if(global_pin_len == 0){
                             goto err;
                         }
-                        ipc_sync_cmd_data.data.u32[0]=16;
+#if CONFIG_SMARTCARD_DEBUG
+                        printf("SD password received:\n");
+                        hexdump(sdpwd, sizeof(sdpwd));
+#endif
+                        ipc_sync_cmd_data.data.u32[0] = 16;
                         memcpy(ipc_sync_cmd_data.data.u8+sizeof(uint32_t), sdpwd, sizeof(sdpwd));
                         /* Indicate the actual size the the transmitted data */
                         ipc_sync_cmd_data.data_size=sizeof(sdpwd)+sizeof(uint32_t);
-
                         ret = sys_ipc(IPC_SEND_SYNC, id_crypto, sizeof(struct sync_command_data), (char*)&ipc_sync_cmd_data);
    		        if(ret != SYS_E_DONE){
                             goto err;
